@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dance Coach — score your moves on-device</title><meta name="description" content="Free dance coach: your camera scores your moves right on your phone. Nothing is uploaded. Daily challenge, original beats, and TikTok clip export.">
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#1b1030"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/icon-192.png">
+<style>body{margin:0;font-family:system-ui,sans-serif;background:#120a22;color:#fff}main{max-width:900px;margin:auto;padding:12px;display:grid;gap:10px}
+h1{margin:4px 0;font-size:26px}button,select,.btn{min-height:52px;border-radius:16px;border:none;font-weight:900;font-size:17px;padding:0 16px;background:#B8FF00;color:#111;cursor:pointer;touch-action:manipulation;text-decoration:none;display:inline-flex;align-items:center}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.panel{background:#1b1030;border-radius:18px;padding:12px}canvas{width:100%;border-radius:16px;background:#000}#coach{max-width:160px}
+#result{text-align:center}small,footer{opacity:.75;font-size:13px}video#cam{display:none}label.btn{background:#7fd3ff}a{color:#B8FF00}</style></head>
+<body><main><h1>💃 Dance Coach</h1>
+<div class="panel" id="daily"></div>
+<div class="row"><button id="dailyBtn" style="background:#FFD23F">🏆 Daily challenge</button><button id="freeBtn" style="background:#ffd6f0">Free dance</button><select id="track" aria-label="Track"></select></div>
+<div class="row"><button id="camBtn">📷 Turn on camera</button><button id="startBtn" style="background:#FFD23F">▶ Start</button><button id="recBtn" style="background:#ff4fd8">⏺ Record clip</button><a id="dl" class="btn" hidden>⬇ Download</a>
+<label class="btn">🎞 Use my video<input id="fileIn" type="file" accept="video/*" hidden></label></div>
+<div id="status" class="panel">Turn on your camera — it stays on this device; nothing is uploaded.</div>
+<canvas id="stage" width="720" height="960"></canvas>
+<div class="panel row"><canvas id="coach" width="300" height="300"></canvas><div id="move"></div></div>
+<div id="result" class="panel" hidden></div><video id="cam" playsinline muted></video>
+<footer>Pose tracking runs on your device with MediaPipe; camera video is never uploaded. Music is original, made in your browser. <a href="/CREDITS.md">Credits</a> · Tip: YouTube videos can't be read by apps — use "Use my video" with a file to dance along to your own clip.</footer>
+</main><script type="module" src="/app.js"></script></body></html>
