@@ -132,3 +132,113 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+
+// ---- PC fixes: no key scrolling + scroll lock while the coach view is active ----
+const SCROLL_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"]);
+const coachActive = () => playing || !!stream;
+const inField = (el) => el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+window.addEventListener("keydown", (e) => { if (coachActive() && SCROLL_KEYS.has(e.code) && !inField(e.target)) e.preventDefault(); }, { passive: false });
+let locked = false;
+function syncLock() {
+  const on = coachActive(); if (on === locked) return; locked = on;
+  for (const el of [document.documentElement, document.body]) { el.style.overflow = on ? "hidden" : ""; el.style.overscrollBehavior = on ? "none" : ""; }
+  if (on) window.scrollTo({ top: Math.max(0, $("#startBtn").getBoundingClientRect().top + scrollY - 8) });
+}
+setInterval(syncLock, 200);
+
+// ---- Gamepad: ignore steering wheels; A/Start toggles play ----
+const WHEEL_RE = /moza|wheel|racing|g29|g920|t300|fanatec|logitech g/i;
+export function safePad(p) {
+  if (!p || !p.connected || WHEEL_RE.test(p.id)) return false;
+  if (p.mapping !== "standard" && p.axes.length <= 2) return false; // single steering axis (+pedal) → wheel-like
+  return true;
+}
+const padPrev = new Map();
+function pollPads() {
+  requestAnimationFrame(pollPads);
+  if (!navigator.getGamepads) return;
+  for (const p of navigator.getGamepads()) {
+    if (!safePad(p)) continue;
+    const down = !!(p.buttons[0]?.pressed || p.buttons[9]?.pressed), was = padPrev.get(p.index);
+    if (down && !was) $("#startBtn").click();
+    padPrev.set(p.index, down);
+  }
+}
+requestAnimationFrame(pollPads);
+
+// ---- Coach host: "Coach Disco Dan" — local, kid-safe lines ----
+const HOST = "Coach Disco Dan";
+const LINES = {
+  start: [
+    "Hi, I'm Coach Disco Dan! Let's make the floor jealous!",
+    "Warm up those wiggles, superstar!",
+    "Why did the dancer bring a ladder? To reach the high notes!",
+    "Shoes on, smile on — let's groove!",
+    "I asked my dog to dance. He said he has two left paws!",
+    "Ready? Your moves called. They want to come out and play!",
+    "Let's dance like nobody's watching… except me. I'm cheering!",
+    "What's a skeleton's favorite dance? Anything with a little backbone!",
+  ],
+  streak: [
+    "Whoa! Are you a toaster? Because you're on fire!",
+    "That move was so smooth, butter called for tips!",
+    "Perfect streak! The disco ball is blushing!",
+    "You're grooving harder than a cereal box on a trampoline!",
+    "Nailed it! Even my mustache is dancing!",
+    "Keep it up — the beat wants your autograph!",
+    "Why don't dancers get lost? They always follow the steps!",
+    "Superstar alert! Somebody call the dance police — no wait, don't, you're amazing!",
+    "That was cooler than a penguin in sunglasses!",
+  ],
+  miss: [
+    "Oops! That's a brand-new move. I'll call it the Wobble Waffle!",
+    "No worries — even pancakes need a flip or two!",
+    "Shake it off like a wet puppy and try again!",
+    "Missed one? The beat forgives you. It's very nice.",
+    "Why did the banana dance badly? It kept slipping! You're doing better than a banana!",
+    "Keep going — every star starts as a twinkle!",
+    "Wiggle first, worry never!",
+    "Mistakes are just bonus dance moves!",
+  ],
+  end: [
+    "Song's over! Take a bow — you earned it!",
+    "What did the music say to you? You rock!",
+    "Great dancing! Grab some water — dancers get thirsty, and so do fish!",
+    "That was fantastic! My dad jokes can't keep up with you!",
+    "High five! Okay, air high five. I'm a cartoon.",
+    "Why did the cookie go to the dance party? It wanted to be a smart cookie — like you!",
+    "You danced, you laughed, you won! See you tomorrow for the daily challenge!",
+  ],
+};
+let lastSay = 0, lastIdx = {};
+const bubble = document.createElement("div");
+bubble.id = "host"; bubble.setAttribute("role", "status"); bubble.setAttribute("aria-live", "polite");
+bubble.innerHTML = `<b>🕺 ${HOST}</b><span></span>`;
+document.body.appendChild(bubble);
+const css = document.createElement("style");
+css.textContent = `#host{position:fixed;left:12px;right:12px;bottom:16px;max-width:520px;margin:auto;background:#fff;color:#1b1030;border-radius:20px;padding:12px 16px;font-size:17px;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;gap:4px;z-index:20;opacity:0;transform:translateY(20px);transition:opacity .3s,transform .3s;pointer-events:none}
+#host.show{opacity:1;transform:none}@media (prefers-reduced-motion: reduce){#host{transition:none;transform:none}}`;
+document.head.appendChild(css);
+let hideT = 0, voiceOn = localStorage.getItem("dc.voice") === "1";
+function say(kind, force) {
+  const nowT = performance.now(); if (!force && nowT - lastSay < 8000) return; lastSay = nowT;
+  const L = LINES[kind]; let i; do { i = Math.floor(Math.random() * L.length); } while (L.length > 1 && i === lastIdx[kind]); lastIdx[kind] = i;
+  bubble.querySelector("span").textContent = L[i]; bubble.classList.add("show"); clearTimeout(hideT); hideT = setTimeout(() => bubble.classList.remove("show"), 4500);
+  if (voiceOn && "speechSynthesis" in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(L[i]); u.rate = 1.05; u.pitch = 1.1; speechSynthesis.speak(u); }
+}
+const vb = document.createElement("button"); vb.id = "voiceBtn"; vb.style.background = "#eee";
+const vLabel = () => (vb.textContent = voiceOn ? "🔊 Coach voice: on" : "🔇 Coach voice: off");
+vLabel(); vb.onclick = () => { voiceOn = !voiceOn; localStorage.setItem("dc.voice", voiceOn ? "1" : "0"); vLabel(); if (!voiceOn) speechSynthesis?.cancel(); else say("start", true); };
+$("#startBtn").parentElement.appendChild(vb);
+// hook moments
+let wasPlaying = false, goodRun = 0, badRun = 0;
+setInterval(() => {
+  if (playing && !wasPlaying) { goodRun = badRun = 0; say("start", true); }
+  if (!playing && wasPlaying && n > 20) say("end", true);
+  wasPlaying = playing;
+  if (playing && stream && smooth != null) {
+    if (smooth > 0.7) { goodRun++; badRun = 0; if (goodRun === 6) say("streak"); }
+    else if (smooth < 0.4) { badRun++; goodRun = 0; if (badRun === 6) say("miss"); }
+    else { goodRun = Math.max(0, goodRun - 1); badRun = Math.max(0, badRun - 1); }
+  }
+}, 500);
