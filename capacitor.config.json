@@ -1,0 +1,10 @@
+{
+  "appId": "com.tekjeep.dancecoach",
+  "appName": "Dance Coach",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false, "captureInput": false, "webContentsDebuggingEnabled": false },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 1200, "launchAutoHide": false, "backgroundColor": "#120a22", "showSpinner": false, "androidScaleType": "CENTER_CROP" },
+    "LocalNotifications": { "smallIcon": "ic_stat_dance", "iconColor": "#B8FF00" }
+  }
+}

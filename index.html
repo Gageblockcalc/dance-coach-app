@@ -1,18 +1,77 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Dance Coach — score your moves on-device</title><meta name="description" content="Free dance coach: your camera scores your moves right on your phone. Nothing is uploaded. Daily challenge, original beats, and TikTok clip export.">
-<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#1b1030"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/icon-192.png">
-<style>body{margin:0;font-family:system-ui,sans-serif;background:#120a22;color:#fff}main{max-width:900px;margin:auto;padding:12px;display:grid;gap:10px}
-h1{margin:4px 0;font-size:26px}button,select,.btn{min-height:52px;border-radius:16px;border:none;font-weight:900;font-size:17px;padding:0 16px;background:#B8FF00;color:#111;cursor:pointer;touch-action:manipulation;text-decoration:none;display:inline-flex;align-items:center}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.panel{background:#1b1030;border-radius:18px;padding:12px}canvas{width:100%;border-radius:16px;background:#000}#coach{max-width:160px}
-#result{text-align:center}small,footer{opacity:.75;font-size:13px}video#cam{display:none}label.btn{background:#7fd3ff}a{color:#B8FF00}</style></head>
-<body><main><h1>💃 Dance Coach</h1>
-<div class="panel" id="daily"></div>
-<div class="row"><button id="dailyBtn" style="background:#FFD23F">🏆 Daily challenge</button><button id="freeBtn" style="background:#ffd6f0">Free dance</button><select id="track" aria-label="Track"></select></div>
-<div class="row"><button id="camBtn">📷 Turn on camera</button><button id="startBtn" style="background:#FFD23F">▶ Start</button><button id="recBtn" style="background:#ff4fd8">⏺ Record clip</button><a id="dl" class="btn" hidden>⬇ Download</a>
-<label class="btn">🎞 Use my video<input id="fileIn" type="file" accept="video/*" hidden></label></div>
-<div id="status" class="panel">Turn on your camera — it stays on this device; nothing is uploaded.</div>
-<canvas id="stage" width="720" height="960"></canvas>
-<div class="panel row"><canvas id="coach" width="300" height="300"></canvas><div id="move"></div></div>
-<div id="result" class="panel" hidden></div><video id="cam" playsinline muted></video>
-<footer>Pose tracking runs on your device with MediaPipe; camera video is never uploaded. Music is original, made in your browser. <a href="/CREDITS.md">Credits</a> · Tip: YouTube videos can't be read by apps — use "Use my video" with a file to dance along to your own clip.<br>Also by Nick: <a href="https://tekjeep.com" rel="noopener">TekJeep</a> · <a href="https://gageblockcalc.com" rel="noopener">GageBlockCalc</a> · <a href="https://buymeacoffee.com/tekjeep" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a> · <a href="https://github.com/Gageblockcalc/dance-coach-app/issues" target="_blank" rel="noopener noreferrer">Feedback</a></footer>
-</main><script type="module" src="/app.js"></script></body></html>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#120a22"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="modulepreload" href="ui.js"><link rel="modulepreload" href="moves.js">
+<style>
+:root{--bg:#120a22;--card:#1d1236;--card2:#271a48;--lime:#B8FF00;--gold:#FFD23F;--pink:#ff4fd8;--sky:#7fd3ff;--txt:#fff;--mut:#cfc6e6;color-scheme:dark}
+[hidden]{display:none!important}*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:900px;margin:auto;padding:max(12px,env(safe-area-inset-top)) 14px calc(110px + env(safe-area-inset-bottom));display:grid;gap:12px}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px}h1{margin:0;font-size:26px;letter-spacing:-.5px}h1 span{background:linear-gradient(90deg,var(--lime),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+button,select,.btn{min-height:52px;min-width:48px;border-radius:16px;border:0;font-family:inherit;font-weight:800;font-size:17px;line-height:1.15;padding:0 18px;background:var(--lime);color:#111;cursor:pointer;touch-action:manipulation;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .12s,filter .12s}
+button:active,.btn:active{transform:scale(.96)}button:focus-visible,select:focus-visible,.btn:focus-visible,a:focus-visible{outline:3px solid var(--sky);outline-offset:3px}
+select{background:var(--card2);color:var(--txt);border:2px solid #3b2a66}
+.icon{background:var(--card2);color:var(--txt);font-size:22px;padding:0;width:52px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.grow>*{flex:1 1 140px}
+.panel{background:var(--card);border-radius:20px;padding:14px}
+.hero{background:linear-gradient(135deg,#3a1670,#1d1236 60%);border:1px solid #3b2a66}.hero b.big{font-size:20px;display:block;margin-bottom:4px}
+.chip{display:inline-block;background:var(--card2);border-radius:999px;padding:4px 10px;margin:2px;font-size:13px;color:var(--mut)}
+canvas{width:100%;border-radius:20px;background:#000;display:block}#coach{max-width:140px;flex:0 0 auto}
+#result{text-align:center;animation:pop .4s ease-out}@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
+#status{color:var(--mut)}footer{color:var(--mut);font-size:13px}a{color:var(--lime)}video#cam{display:none}
+.b-gold{background:var(--gold)}.b-pink{background:var(--pink);color:#111}.b-sky{background:var(--sky)}.b-soft{background:#ffd6f0}
+body.dancing .hide-dance{display:none}
+/* sheets */
+.sheet{position:fixed;inset:0;z-index:50;background:rgba(8,4,18,.86);display:grid;place-items:end center;padding:0}
+.sheet[hidden]{display:none}.sheet>div{background:var(--card);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:26px 26px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));animation:up .28s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.sheet h2{margin:0 0 8px;font-size:22px;outline:none}.sheet p,.sheet li{color:var(--mut)}
+.switch{width:100%;justify-content:space-between;background:var(--card2);color:var(--txt);text-align:left;padding:12px 16px;min-height:64px;margin:6px 0;font-weight:700}
+.switch small{display:block;font-weight:400;color:var(--mut);font-size:13px;margin-top:3px}.switch span{display:block}
+.switch i{flex:0 0 52px;height:30px;border-radius:99px;background:#4a3d6e;position:relative;transition:background .2s}.switch i::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s}
+.switch[aria-checked=true] i{background:var(--lime)}.switch[aria-checked=true] i::after{left:25px}
+.timeRow{display:flex;justify-content:space-between;align-items:center;padding:8px 4px;color:var(--mut)}.timeRow input{min-height:48px;font-size:17px;border-radius:12px;border:0;padding:0 10px}
+.note{font-size:14px}
+#onboard{place-items:center;padding:16px}#onboard>div{border-radius:26px;text-align:center}.step .art{font-size:72px;line-height:1.1;margin:8px 0}
+.dots{display:flex;gap:8px;justify-content:center;margin:12px 0}.dots i{width:10px;height:10px;border-radius:50%;background:#4a3d6e}.dots i.on{background:var(--lime);width:26px;border-radius:99px}
+.link{background:none;color:var(--lime);text-decoration:underline;min-height:48px;padding:0 8px;font-weight:600}
+html.reduce *{animation:none!important;transition:none!important}@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head>
+<body><main>
+<header><h1>💃 <span>Dance Coach</span></h1><button id="settingsBtn" class="icon" aria-label="Settings">⚙️</button></header>
+<section class="panel hero hide-dance" id="daily" aria-live="polite"></section>
+<div class="row grow hide-dance"><button id="dailyBtn" class="b-gold">🏆 Daily challenge</button><button id="freeBtn" class="b-soft">🎶 Free dance</button></div>
+<label class="row hide-dance"><span style="color:var(--mut)">Song</span><select id="track" aria-label="Song" style="flex:1"></select></label>
+<div class="row grow"><button id="camBtn">📷 Turn on camera</button><button id="startBtn" class="b-gold">▶ Start</button></div>
+<div class="row grow"><button id="recBtn" class="b-pink">⏺ Record clip</button><a id="dl" class="btn b-sky" hidden>⬇ Download</a><label class="btn b-sky hide-dance" tabindex="0">🎞 Use my video<input id="fileIn" type="file" accept="video/*" hidden></label></div>
+<div id="status" class="panel" role="status" aria-live="polite">Your camera stays on this device — nothing is uploaded.</div>
+<canvas id="stage" width="720" height="960" role="img" aria-label="Camera view with your pose and score"></canvas>
+<div class="panel row"><canvas id="coach" width="300" height="300" role="img" aria-label="Coach showing the current move"></canvas><div id="move" aria-live="off" style="flex:1"></div></div>
+<div id="result" class="panel" hidden role="status" aria-live="assertive"></div><video id="cam" playsinline muted></video>
+<footer class="hide-dance">Pose tracking runs on your device; camera video is never uploaded. No accounts, no data collected. <a href="privacy.html">Privacy</a> · <a href="CREDITS.md">Credits</a><br>Tip: YouTube videos can't be read by apps — use "Use my video" with a file.<br>Also by Nick: <a href="https://tekjeep.com" rel="noopener">TekJeep</a> · <a href="https://gageblockcalc.com" rel="noopener">GageBlockCalc</a> · <a href="https://buymeacoffee.com/tekjeep" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a> · <a href="https://github.com/Gageblockcalc/dance-coach-app/issues" target="_blank" rel="noopener noreferrer">Feedback</a></footer>
+</main>
+
+<div id="onboard" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Welcome to Dance Coach"><div>
+ <section class="step"><div class="art" aria-hidden="true">🕺💃</div><h2 tabindex="-1">Welcome to Dance Coach!</h2><p>Copy the coach, score points, and keep your daily streak alive. Coach Disco Dan brings the dad jokes.</p></section>
+ <section class="step" hidden><div class="art" aria-hidden="true">📷🔒</div><h2 tabindex="-1">Your camera stays on your phone</h2><p>We ask for the camera so the app can see your moves. Video is processed right on this device and is never uploaded, saved or shared. No account needed.</p></section>
+ <section class="step" hidden><div class="art" aria-hidden="true">📱↔️🧍</div><h2 tabindex="-1">How to play</h2><p>Prop your phone up, step back until your whole body is in view, and mirror the green coach. Hit "Perfect!" moves to build streaks. Record a clip to share later.</p></section>
+ <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+ <div class="row grow"><button id="obSkip" class="link">Skip</button><button id="obNext">Next</button></div>
+</div></div>
+
+<div id="settings" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Settings"><div>
+ <div class="row" style="justify-content:space-between"><h2 tabindex="-1">Settings</h2><button class="icon" data-close aria-label="Close settings">✕</button></div>
+ <div id="settingsList"></div>
+ <div class="row"><button id="privacyBtn" class="link">Privacy policy</button><button id="replayOb" class="link">Show tutorial again</button><a class="link btn" href="CREDITS.md">Credits</a></div>
+</div></div>
+
+<div id="privacy" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Privacy policy"><div>
+ <div class="row" style="justify-content:space-between"><h2 tabindex="-1">Privacy</h2><button class="icon" data-close aria-label="Close privacy">✕</button></div>
+ <p><b>Short version: we collect nothing.</b></p>
+ <ul><li>The camera is used only to track your pose, on this device. Video and pose data are never uploaded, stored on a server or shared.</li>
+ <li>No accounts, no sign-in, no ads, no analytics, no trackers.</li>
+ <li>Settings, best scores and streaks are stored only on this device (local storage). Uninstalling or clearing app data deletes them.</li>
+ <li>Clips you record stay on your device until you choose to save or share them.</li>
+ <li>Daily reminders are optional, off by default, and scheduled locally on your phone.</li></ul>
+ <p>Full policy: <a href="privacy.html">privacy.html</a></p>
+</div></div>
+<script type="module" src="app.js"></script></body></html>

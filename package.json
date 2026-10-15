@@ -1,0 +1,23 @@
+{
+  "name": "dance-coach-app",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "bash scripts/build-web.sh",
+    "deploy": "npm run build && npx -y wrangler@3 pages deploy dist --project-name dancecoach --branch main",
+    "android": "npm run build && npx cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/camera": "^7.0.5",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/haptics": "^7.0.5",
+    "@capacitor/local-notifications": "^7.0.7",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.6"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.6.9"
+  }
+}

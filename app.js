@@ -1,8 +1,9 @@
 // Dance Coach — on-device pose scoring (MediaPipe). Camera frames never leave the device.
+import { sfx, haptic, S, setAudio } from "./ui.js";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
 const TV = "0.10.14";
-const CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TV}`;
-const MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
+const MODEL = new URL("./vendor/pose_landmarker_lite.task", location.href).href;
 const $ = (s) => document.querySelector(s);
 
 // ---- original synthesized tracks (made in-browser with Web Audio; CC0, see CREDITS.md) ----
@@ -17,6 +18,7 @@ function audio() {
   if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination); recDest = ac.createMediaStreamDestination(); master.connect(recDest); }
   return ac;
 }
+setAudio(() => (audio(), { ac, out: master }));
 function blip(t, f, dur, type, vol) { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.02); }
 function kick(t) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.15); g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2); o.connect(g).connect(master); o.start(t); o.stop(t + 0.22); }
 function hat(t, vol) { const b = ac.createBuffer(1, ac.sampleRate * 0.05, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b; f.type = "highpass"; f.frequency.value = 7000; g.gain.value = vol; s.connect(f).connect(g).connect(master); s.start(t); }
@@ -46,7 +48,7 @@ function coachAt(t, bpm) {
   return { pose: a.map((v, i) => v + wrap(b[i] - v) * k), idx: ai, next: bi };
 }
 
-// ---- MediaPipe (loaded on demand from jsDelivr, module script, no eval) ----
+// ---- MediaPipe (loaded on demand from ./vendor, module script, no eval) ----
 let mpP = null;
 const loadMP = () => (mpP ??= import(`${CDN}/vision_bundle.mjs`).then(async (m) => ({ m, fs: await m.FilesetResolver.forVisionTasks(`${CDN}/wasm`) })).catch((e) => { mpP = null; throw e; }));
 async function landmarker() {
@@ -57,14 +59,14 @@ async function landmarker() {
 
 // ---- state ----
 let stream = null, lm = null, refLM = null, playing = false, t0 = 0, sum = 0, n = 0, perfect = 0, smooth = null, lastDet = 0, lastPose = null;
-let rec = null, chunks = [], refVideo = null, refCache = new Map();
+let lastBuzz = 0, rec = null, chunks = [], refVideo = null, refCache = new Map();
 const cam = $("#cam"), stage = $("#stage"), g = stage.getContext("2d"), coach = $("#coach"), cg = coach.getContext("2d");
 const status = (s) => ($("#status").textContent = s);
 function fillTracks() { const sel = $("#track"); sel.innerHTML = TRACKS.map((t) => `<option value="${t.id}">${t.name} · ${t.bpm} BPM</option>`).join(""); sel.value = track.id; }
 fillTracks();
 $("#track").onchange = (e) => (track = TRACKS.find((t) => t.id === e.target.value));
 const best = () => JSON.parse(localStorage.getItem("dc.best") || "{}");
-function showDaily() { const d = dailyRoutine(), b = best()[today]; $("#daily").innerHTML = `<b>Daily challenge ${today}</b> · ${d.track.name} · ${d.routine.length} moves: ${d.routine.slice(1).map((i) => MOVES[i].name).join(", ")}${b ? ` · your best today: <b>${b}%</b>` : ""} · streak: <b>${streak()}</b>🔥`; }
+function showDaily() { const d = dailyRoutine(), b = best()[today], st = streak(); $("#daily").innerHTML = `<b class="big">🏆 Today's challenge</b><div>${d.track.name} · ${d.routine.length} moves · 🔥 ${st}-day streak${b ? ` · best today <b>${b}%</b>` : ""}</div><div style="margin-top:6px">${d.routine.slice(1).map((i) => `<span class="chip">${MOVES[i].name}</span>`).join("")}</div>`; }
 function streak() { const b = best(); let s = 0, d = new Date(); for (;;) { const k = d.toISOString().slice(0, 10); if (b[k] == null) break; s++; d.setUTCDate(d.getUTCDate() - 1); } return s; }
 showDaily();
 $("#dailyBtn").onclick = () => { const d = dailyRoutine(); routine = d.routine; track = d.track; $("#track").value = track.id; mode = "daily"; status("Daily challenge loaded. Turn on camera, then Start."); };
@@ -76,7 +78,7 @@ $("#camBtn").onclick = async () => {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
     cam.srcObject = stream; await cam.play(); $("#camBtn").textContent = "Camera off"; status("Loading pose tracker (on this device)…");
     lm ??= await landmarker(); status("Ready! Pick a track and press Start.");
-  } catch (e) { status(stream ? "Pose tracker couldn't load: " + e.message : "Camera blocked — allow it in browser settings."); }
+  } catch (e) { status(stream ? "Pose tracker couldn't load: " + e.message : (window.Capacitor?.isNativePlatform?.() ? "Camera blocked — allow it in Android Settings › Apps › Dance Coach › Permissions." : "Camera blocked — allow it in your browser's site settings.")); }
 };
 $("#fileIn").onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return; refVideo = document.createElement("video"); refVideo.src = URL.createObjectURL(f); refVideo.muted = false; refVideo.playsInline = true; refCache.clear();
@@ -86,10 +88,10 @@ $("#fileIn").onchange = async (e) => {
 function start() {
   sum = n = perfect = 0; smooth = null; playing = true; $("#result").hidden = true;
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000; }
-  $("#startBtn").textContent = "■ Stop";
+  $("#startBtn").textContent = "■ Stop"; document.body.classList.add("dancing");
 }
 function stop() {
-  playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start";
+  playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
     $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div>`;
     if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); } }
@@ -124,14 +126,14 @@ function frame(now) {
   g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, "#B8FF00", true); g.restore();
   if (playing && lastPose && stream) {
     const u = poseAngles(lastPose), s = u && similarity(u, ref, refV);
-    if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) perfect++; }
+    if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); } } }
   }
   if (playing) { const [w, col] = WORD(smooth ?? 0); g.font = "900 40px system-ui"; g.textAlign = "center"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(stream ? w : "Turn on camera to score", W / 2, H - 70); g.shadowBlur = 0;
     g.fillStyle = "rgba(255,255,255,.25)"; g.fillRect(20, H - 40, W - 40, 16); g.fillStyle = col; g.fillRect(20, H - 40, (W - 40) * (smooth ?? 0), 16);
     g.font = "700 20px system-ui"; g.textAlign = "left"; g.fillStyle = "#fff"; g.fillText(`Dance Coach · ${n > 0 ? Math.round((sum / n) * 100) : 0}%`, 16, 32); }
 }
 requestAnimationFrame(frame);
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) navigator.serviceWorker.register("/sw.js").catch(() => {});
 
 // ---- PC fixes: no key scrolling + scroll lock while the coach view is active ----
 const SCROLL_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"]);
@@ -216,28 +218,25 @@ bubble.id = "host"; bubble.setAttribute("role", "status"); bubble.setAttribute("
 bubble.innerHTML = `<b>🕺 ${HOST}</b><span></span>`;
 document.body.appendChild(bubble);
 const css = document.createElement("style");
-css.textContent = `#host{position:fixed;left:12px;right:12px;bottom:16px;max-width:520px;margin:auto;background:#fff;color:#1b1030;border-radius:20px;padding:12px 16px;font-size:17px;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;gap:4px;z-index:20;opacity:0;transform:translateY(20px);transition:opacity .3s,transform .3s;pointer-events:none}
-#host.show{opacity:1;transform:none}@media (prefers-reduced-motion: reduce){#host{transition:none;transform:none}}`;
+css.textContent = `#host{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));max-width:520px;margin:auto;background:#fff;color:#1b1030;border-radius:20px;padding:12px 16px;font-size:17px;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;gap:4px;z-index:20;opacity:0;transform:translateY(20px);transition:opacity .3s,transform .3s;pointer-events:none}
+#host.show{opacity:1;transform:none}@media (prefers-reduced-motion: reduce){#host{transition:none;transform:none}}html.reduce #host{transition:none;transform:none}`;
 document.head.appendChild(css);
-let hideT = 0, voiceOn = localStorage.getItem("dc.voice") === "1";
+let hideT = 0;
 function say(kind, force) {
   const nowT = performance.now(); if (!force && nowT - lastSay < 8000) return; lastSay = nowT;
   const L = LINES[kind]; let i; do { i = Math.floor(Math.random() * L.length); } while (L.length > 1 && i === lastIdx[kind]); lastIdx[kind] = i;
   bubble.querySelector("span").textContent = L[i]; bubble.classList.add("show"); clearTimeout(hideT); hideT = setTimeout(() => bubble.classList.remove("show"), 4500);
-  if (voiceOn && "speechSynthesis" in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(L[i]); u.rate = 1.05; u.pitch = 1.1; speechSynthesis.speak(u); }
+  if (S.voice && "speechSynthesis" in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(L[i]); u.rate = 1.05; u.pitch = 1.1; speechSynthesis.speak(u); }
 }
-const vb = document.createElement("button"); vb.id = "voiceBtn"; vb.style.background = "#eee";
-const vLabel = () => (vb.textContent = voiceOn ? "🔊 Coach voice: on" : "🔇 Coach voice: off");
-vLabel(); vb.onclick = () => { voiceOn = !voiceOn; localStorage.setItem("dc.voice", voiceOn ? "1" : "0"); vLabel(); if (!voiceOn) speechSynthesis?.cancel(); else say("start", true); };
-$("#startBtn").parentElement.appendChild(vb);
+window.addEventListener("dc-settings", (e) => { if (e.detail === "voice" && S.voice) say("start", true); });
 // hook moments
 let wasPlaying = false, goodRun = 0, badRun = 0;
 setInterval(() => {
-  if (playing && !wasPlaying) { goodRun = badRun = 0; say("start", true); }
-  if (!playing && wasPlaying && n > 20) say("end", true);
+  if (playing && !wasPlaying) { goodRun = badRun = 0; say("start", true); sfx("start", 0.6); haptic("medium"); }
+  if (!playing && wasPlaying && n > 20) { say("end", true); sfx("cheer", 0.7); setTimeout(() => sfx("end", 0.6), 300); haptic("success"); }
   wasPlaying = playing;
   if (playing && stream && smooth != null) {
-    if (smooth > 0.7) { goodRun++; badRun = 0; if (goodRun === 6) say("streak"); }
+    if (smooth > 0.7) { goodRun++; badRun = 0; if (goodRun === 6) { say("streak"); sfx("perfect", 0.6); haptic("medium"); } }
     else if (smooth < 0.4) { badRun++; goodRun = 0; if (badRun === 6) say("miss"); }
     else { goodRun = Math.max(0, goodRun - 1); badRun = Math.max(0, badRun - 1); }
   }
