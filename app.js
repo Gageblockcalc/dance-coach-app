@@ -135,7 +135,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
 
 // ---- PC fixes: no key scrolling + scroll lock while the coach view is active ----
 const SCROLL_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"]);
-const coachActive = () => playing || !!stream;
+const coachActive = () => playing; // lock only while dancing so the clip download + footer stay reachable
 const inField = (el) => el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
 window.addEventListener("keydown", (e) => { if (coachActive() && SCROLL_KEYS.has(e.code) && !inField(e.target)) e.preventDefault(); }, { passive: false });
 let locked = false;
