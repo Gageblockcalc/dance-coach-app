@@ -1,25 +1,25 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Dance Coach — score your moves on-device</title><meta name="description" content="Free dance coach: your camera scores your moves right on your phone. Nothing is uploaded. Daily challenge, original beats, and TikTok clip export.">
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#120a22"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<script src="version.js"></script><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#120a22"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <link rel="modulepreload" href="ui.js"><link rel="modulepreload" href="moves.js">
 <style>
 :root{--sat:0px;--sab:0px;--sal:0px;--sar:0px;--st:max(env(safe-area-inset-top),var(--sat));--sb:max(env(safe-area-inset-bottom),var(--sab));--sl:max(env(safe-area-inset-left),var(--sal));--sr:max(env(safe-area-inset-right),var(--sar));--bg:#120a22;--card:#1d1236;--card2:#271a48;--lime:#B8FF00;--gold:#FFD23F;--pink:#ff4fd8;--sky:#7fd3ff;--txt:#fff;--mut:#cfc6e6;color-scheme:dark}
 [hidden]{display:none!important}*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:900px;margin:auto;padding:calc(12px + var(--st)) calc(14px + var(--sr)) calc(110px + var(--sb)) calc(14px + var(--sl));display:grid;gap:12px}
-header{padding:4px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}h1{margin:0;font-size:26px;letter-spacing:-.5px}h1 span{background:linear-gradient(90deg,var(--lime),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+header{padding:4px 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}h1{margin:0;font-size:clamp(19px,6vw,26px);white-space:nowrap;letter-spacing:-.5px}h1 span{background:linear-gradient(90deg,var(--lime),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
 button,select,.btn{min-height:52px;min-width:48px;border-radius:16px;border:0;font-family:inherit;font-weight:800;font-size:17px;line-height:1.15;padding:0 18px;background:var(--lime);color:#111;cursor:pointer;touch-action:manipulation;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .12s,filter .12s}
 button:active,.btn:active{transform:scale(.96)}button:focus-visible,select:focus-visible,.btn:focus-visible,a:focus-visible{outline:3px solid var(--sky);outline-offset:3px}
 select{background:var(--card2);color:var(--txt);border:2px solid #3b2a66}
 .icon{background:var(--card2);color:var(--txt);font-size:22px;padding:0;width:52px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.grow>*{flex:1 1 140px}
 .panel{background:var(--card);border-radius:20px;padding:14px}
-.hero{background:linear-gradient(135deg,#3a1670,#1d1236 60%);border:1px solid #3b2a66}.hero b.big{font-size:20px;display:block;margin-bottom:4px}
+#daily{min-height:150px}.hero{background:linear-gradient(135deg,#3a1670,#1d1236 60%);border:1px solid #3b2a66}.hero b.big{font-size:20px;display:block;margin-bottom:4px}
 .chip{display:inline-block;background:var(--card2);border-radius:999px;padding:4px 10px;margin:2px;font-size:13px;color:var(--mut)}
 canvas{inline-size:100%;border-radius:20px;background:#000;display:block}#coach{max-width:140px;flex:0 0 auto}
 #result{text-align:center;animation:pop .4s ease-out}@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
 #status{color:var(--mut)}footer{color:var(--mut);font-size:13px}a{color:var(--lime)}video#cam{display:none}
 .b-gold{background:var(--gold)}.b-pink{background:var(--pink);color:#111}.b-sky{background:var(--sky)}.b-soft{background:#ffd6f0}
-body.dancing .hide-dance{display:none}
+body.dancing .hide-dance{display:none}.pause-only{display:none!important}body.paused .pause-only{display:inline-flex!important}
 /* sheets */
 .sheet{position:fixed;inset:0;z-index:50;background:rgba(8,4,18,.86);display:grid;place-items:end center;padding:var(--st) var(--sr) 0 var(--sl)}
 .sheet[hidden]{display:none}.sheet>div{background:var(--card);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:26px 26px 0 0;padding:20px 18px calc(20px + var(--sb));animation:up .28s ease-out}
@@ -38,17 +38,17 @@ html.reduce *{animation:none!important;transition:none!important}@media (prefers
 button,.btn,.chip{overflow-wrap:anywhere;text-align:center}h2,p{overflow-wrap:anywhere}
 </style></head>
 <body><main>
-<header><h1>💃 <span>Dance Coach</span></h1><span id="coins" class="chip" hidden aria-live="polite"></span><button id="settingsBtn" class="icon" aria-label="Settings">⚙️</button></header>
+<header><h1>💃 <span>Dance Coach</span></h1><button id="helpBtn" class="icon" aria-label="Controls guide (long-press)">?</button><span id="coins" class="chip" hidden aria-live="polite"></span><button id="settingsBtn" class="icon" aria-label="Settings">⚙️</button></header>
 <section class="panel hero hide-dance" id="daily" aria-live="polite"></section>
 <div class="row grow hide-dance"><button id="dailyBtn" class="b-gold" data-i18n="daily">🏆 Daily challenge</button><button id="freeBtn" class="b-soft" data-i18n="free">🎶 Free dance</button></div>
 <label class="row hide-dance"><span style="color:var(--mut)" data-i18n="song">Song</span><select id="track" aria-label="Song" style="flex:1"></select></label>
-<div class="row grow"><button id="camBtn" data-i18n="cam">📷 Turn on camera</button><button id="startBtn" class="b-gold" data-i18n="start">▶ Start</button></div>
+<div class="row grow"><button id="camBtn" data-i18n="cam">📷 Turn on camera</button><button id="startBtn" class="b-gold" data-i18n="start">▶ Start</button><button id="pauseCtl" class="b-sky pause-only" onclick="window.dcShowControls&&window.dcShowControls(5000)">❔ Controls</button></div>
 <div class="row grow"><button id="recBtn" class="b-pink" data-i18n="rec">⏺ Record clip</button><a id="dl" class="btn b-sky" hidden data-i18n="dl">⬇ Download</a><label class="btn b-sky hide-dance" tabindex="0" data-i18n="myvid">🎞 Use my video<input id="fileIn" type="file" accept="video/*" hidden></label></div>
-<div id="status" class="panel" role="status" aria-live="polite">Your camera stays on this device — nothing is uploaded.</div>
+<div id="status" class="panel" role="status" aria-live="polite" data-i18n="status">Your camera stays on this device — nothing is uploaded.</div>
 <canvas id="stage" width="720" height="960" role="img" aria-label="Camera view with your pose and score"></canvas>
 <div class="panel row"><canvas id="coach" width="300" height="300" role="img" aria-label="Coach showing the current move"></canvas><div id="move" aria-live="off" style="flex:1"></div></div>
 <div id="result" class="panel" hidden role="status" aria-live="assertive"></div><video id="cam" playsinline muted></video>
-<footer class="hide-dance">Pose tracking runs on your device; camera video is never uploaded. No accounts, no data collected. <a href="privacy.html">Privacy</a> · <a href="CREDITS.md">Credits</a><br>Tip: YouTube videos can't be read by apps — use "Use my video" with a file.<br>Also by Nick: <a href="https://tekjeep.com" rel="noopener">TekJeep</a> · <a href="https://gageblockcalc.com" rel="noopener">GageBlockCalc</a> · <a href="https://buymeacoffee.com/tekjeep" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a> · <a href="mailto:tekjeep@gmail.com?subject=Dance%20Coach%20feedback">Feedback</a> (<a href="https://github.com/Gageblockcalc/dance-coach-app/issues" target="_blank" rel="noopener noreferrer">GitHub</a>)</footer>
+<footer class="hide-dance">Pose tracking runs on your device; camera video is never uploaded. No accounts, no data collected. <a href="privacy.html">Privacy</a> · <a href="CREDITS.md">Credits</a><br>Tip: YouTube videos can't be read by apps — use "Use my video" with a file.<br>Also by Nick: <a href="https://tekjeep.com" rel="noopener">TekJeep</a> · <a href="https://gageblockcalc.com" rel="noopener">GageBlockCalc</a> · <a href="https://buymeacoffee.com/tekjeep" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a> · <a href="mailto:tekjeep@gmail.com?subject=Dance%20Coach%20feedback">Feedback</a> · <a href="whats-new.html">What's new</a> · <span class="ver"></span> (<a href="https://github.com/Gageblockcalc/dance-coach-app/issues" target="_blank" rel="noopener noreferrer">GitHub</a>)</footer>
 </main>
 
 <div id="onboard" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Welcome to Dance Coach"><div>
@@ -62,8 +62,9 @@ button,.btn,.chip{overflow-wrap:anywhere;text-align:center}h2,p{overflow-wrap:an
 <div id="settings" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Settings"><div>
  <div class="row" style="justify-content:space-between"><h2 tabindex="-1" data-i18n="settings">Settings</h2><button class="icon" data-close aria-label="Close settings">✕</button></div>
  <label class="row"><span data-i18n="lang">Language</span><select id="langSel" aria-label="Language" style="flex:1"></select></label>
+ <label class="row"><span>Quality</span><select id="qualSel" aria-label="Quality" style="flex:1"><option value="auto">Auto</option><option value="low">Low (battery saver)</option><option value="high">High</option></select></label>
  <div id="settingsList"></div>
- <div class="row"><button id="privacyBtn" class="link" data-i18n="privacyBtn">Privacy policy</button><button id="replayOb" class="link" data-i18n="tutorial">Show tutorial again</button><a class="link btn" href="CREDITS.md" data-i18n="credits">Credits</a><a class="link btn" href="mailto:tekjeep@gmail.com?subject=Dance%20Coach%20feedback" data-i18n="feedback">Feedback</a></div>
+ <div class="row"><button id="privacyBtn" class="link" data-i18n="privacyBtn">Privacy policy</button><button id="replayOb" class="link" data-i18n="tutorial">Show tutorial again</button><a class="link btn" href="CREDITS.md" data-i18n="credits">Credits</a><a class="link btn" href="mailto:tekjeep@gmail.com?subject=Dance%20Coach%20feedback" data-i18n="feedback">Feedback</a><a class="link btn" href="whats-new.html">What's new</a></div><p class="note ver" style="color:var(--mut)"></p>
 </div></div>
 
 <div id="privacy" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Privacy policy"><div>

@@ -3,8 +3,12 @@ import { sfx, haptic, S, setAudio } from "./ui.js";
 import { initPads, rumble } from "./gamepad.js";
 import { initI18n } from "./i18n.js";
 import { coins } from "./coins.js";
+import { initControls, showControls } from "./controls.js";
 initI18n();
 coins.onOpen();
+initControls(); window.dcShowControls = showControls;
+{ const qs = document.getElementById("qualSel"); if (qs) { qs.value = localStorage.getItem("dc.quality") || "auto"; qs.onchange = () => window.dcSetQuality(qs.value); } }
+for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VERSION || "";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
@@ -102,7 +106,7 @@ function stop() {
   playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
     $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div>`;
-    coins.onSongEnd({ stars, daily: mode === "daily", perfect });
+    coins.onSongEnd({ stars, daily: mode === "daily", perfect, streak: streak() });
     if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); } }
   if (rec && rec.state === "recording") rec.stop();
 }
@@ -125,8 +129,17 @@ function setPaused(on) {
 }
 window.dcPause = setPaused;
 const WORD = (s) => (s > 0.8 ? ["Perfect!", "#FFD23F"] : s > 0.65 ? ["Great!", "#B8FF00"] : s > 0.5 ? ["Good", "#7fd3ff"] : ["Keep going!", "#fff"]);
+const RM = matchMedia("(prefers-reduced-motion: reduce)");
+let quality = localStorage.getItem("dc.quality") || "auto", fpsE = 60, detE = 0, lastF = 0, parts = [];
+window.dcPerf = { get fps() { return fpsE; }, get det() { return detE; }, get q() { return quality; }, frames: 0 };
+window.dcSetQuality = (q) => { quality = q; localStorage.setItem("dc.quality", q); };
+const detGap = () => quality === "low" ? Math.max(110, detE * 4) : quality === "high" ? Math.max(45, detE * 1.5) : (fpsE < 40 || detE > 35 ? Math.max(110, detE * 3) : 66); // keep the UI responsive on slow devices
+const partN = () => RM.matches ? 0 : quality === "low" ? 0 : quality === "high" ? 26 : (fpsE < 40 ? 6 : 14);
+function burst(x, y) { for (let i = 0, k = partN(); i < k; i++) { const a = Math.random() * 6.283, v = 2 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 3, life: 1, c: ["#B8FF00", "#FFD23F", "#ff4fd8", "#7fd3ff"][i % 4] }); } }
+function drawParts(g) { if (!parts.length) return; for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; g.fillRect(p.x, p.y, 8, 8); } g.globalAlpha = 1; parts = parts.filter((p) => p.life > 0); }
 function frame(now) {
   requestAnimationFrame(frame);
+  window.dcPerf.frames++; if (lastF) fpsE = fpsE * 0.95 + (1000 / Math.max(1, now - lastF)) * 0.05; lastF = now;
   const t = playing ? (refVideo ? refVideo.currentTime : ((paused ? pausedAt : now) - t0) / 1000) : 0, bpm = track.bpm;
   const c = coachAt(t, bpm); let ref = c.pose, refV;
   if (refVideo && refLM && refVideo.readyState >= 2) { const k = Math.round(refVideo.currentTime * 10); let r = refCache.get(k); if (!r) { try { r = poseAngles(refLM.detectForVideo(refVideo, now + 0.5).landmarks?.[0]); } catch {} if (r) refCache.set(k, r); } if (r) { ref = r.a; refV = r.v; } }
@@ -135,14 +148,15 @@ function frame(now) {
   const W = stage.width, H = stage.height;
   g.save(); g.translate(W, 0); g.scale(-1, 1);
   if (stream && cam.readyState >= 2) g.drawImage(cam, 0, 0, W, H); else { g.fillStyle = "#120a22"; g.fillRect(0, 0, W, H); }
-  if (lm && stream && cam.readyState >= 2 && now - lastDet > 66) { lastDet = now; try { lastPose = lm.detectForVideo(cam, now).landmarks?.[0] || null; } catch {} }
+  if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(cam, now).landmarks?.[0] || null; } catch {} detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
   if (lastPose && stream) { g.strokeStyle = "#ff4fd8"; g.lineWidth = 6; g.lineCap = "round"; for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.beginPath(); g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); g.stroke(); } }
   g.restore();
   g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, "#B8FF00", true); g.restore();
   if (playing && !paused && lastPose && stream) {
     const u = poseAngles(lastPose), s = u && similarity(u, ref, refV);
-    if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); } } }
+    if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
   }
+  drawParts(g);
   if (playing && paused) { g.font = "900 56px system-ui"; g.textAlign = "center"; g.fillStyle = "#fff"; g.fillText("⏸ Paused", W / 2, H / 2); }
   if (playing) { const [w, col] = WORD(smooth ?? 0); g.font = "900 40px system-ui"; g.textAlign = "center"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(stream ? w : "Turn on camera to score", W / 2, H - 70); g.shadowBlur = 0;
     g.fillStyle = "rgba(255,255,255,.25)"; g.fillRect(20, H - 40, W - 40, 16); g.fillStyle = col; g.fillRect(20, H - 40, (W - 40) * (smooth ?? 0), 16);
@@ -241,7 +255,7 @@ setInterval(() => {
   if (!playing && wasPlaying && n > 20) { say("end", true); sfx("cheer", 0.7); setTimeout(() => sfx("end", 0.6), 300); haptic("success"); }
   wasPlaying = playing;
   if (playing && stream && smooth != null) {
-    if (smooth > 0.7) { goodRun++; badRun = 0; if (goodRun === 6) { say("streak"); sfx("perfect", 0.6); haptic("medium"); } }
+    if (smooth > 0.7) { goodRun++; badRun = 0; if (goodRun === 6) { say("streak"); sfx("perfect", 0.6); haptic("medium"); if (!RM.matches && quality !== "low") stage.animate([{ transform: "translate(0,0)" }, { transform: "translate(-5px,2px)" }, { transform: "translate(4px,-2px)" }, { transform: "translate(0,0)" }], { duration: 260 }); } }
     else if (smooth < 0.4) { badRun++; goodRun = 0; if (badRun === 6) say("miss"); }
     else { goodRun = Math.max(0, goodRun - 1); badRun = Math.max(0, badRun - 1); }
   }

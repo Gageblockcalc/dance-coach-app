@@ -4,7 +4,7 @@ const HUB = "https://nick-sites-hub.tekjeep.workers.dev", SITE = "dancecoach";
 const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 let guest = localStorage.getItem("hub_guest");
 const el = () => document.getElementById("coins");
-function show(b) { const e = el(); if (!e) return; e.hidden = false; e.textContent = b == null ? "🪙 –" : "🪙 " + b; e.title = b == null ? "Coins unavailable right now" : "Coins"; }
+function show(b) { const e = el(); if (!e) return; e.hidden = b == null; e.textContent = b == null ? "🪙 –" : "🪙 " + b; e.title = b == null ? "Coins unavailable right now" : "Coins"; }
 async function call(path, body) {
   if (native) return null;
   try {
@@ -19,12 +19,14 @@ async function call(path, body) {
 const day = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 function isoWeek(d = new Date()) { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const n = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - n); const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return t.getUTCFullYear() + "-W" + String(Math.ceil(((t - y) / 864e5 + 1) / 7)).padStart(2, "0"); }
 export const coins = {
+  // free_chest: once per 4h window (server caps it too). buy_cosmetic_*: spend for cosmetics (UI not built yet).
+  chest() { return this.award("free_chest", "chest-" + Math.floor(Date.now() / 144e5)); },
   balance: () => call("balance"),
   award: (event, key) => call("award", { event, idempotency_key: key }),
   spend: (event, key) => call("spend", { event, idempotency_key: key }),
   // Hooks used by app.js
   onOpen() { if (native) return; this.balance().then(() => this.award("daily_streak", "streak-" + day())); },
-  onSongEnd({ stars, daily, perfect }) {
+  onSongEnd({ stars, daily, perfect, streak = 0 }) {
     if (native) return; const id = Date.now().toString(36);
     this.award("first_dance_day", "first-" + day());
     this.award("song_complete", "song-" + id);
@@ -32,5 +34,8 @@ export const coins = {
     if (daily) { this.award("daily_challenge", "daily-" + day()); this.award("weekly_challenge", "weekly-" + isoWeek()); }
     this.award("achievement_first_dance", "ach-first-dance");
     if (perfect >= 10) this.award("achievement_perfect_10", "ach-perfect-10");
+    if (streak >= 7) this.award("achievement_streak_7", "ach-streak-7");
+    const songs = +(localStorage.getItem("dc.songs") || 0) + 1; localStorage.setItem("dc.songs", songs);
+    if (songs % 10 === 0) this.award("level_up", "level-" + songs / 10);
   },
 };
