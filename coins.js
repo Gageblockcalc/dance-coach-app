@@ -5,16 +5,26 @@ const native = !!(window.Capacitor && window.Capacitor.isNativePlatform && windo
 let guest = localStorage.getItem("hub_guest");
 const el = () => document.getElementById("coins");
 function show(b) { const e = el(); if (!e) return; e.hidden = b == null; e.textContent = b == null ? "🪙 –" : "🪙 " + b; e.title = b == null ? "Coins unavailable right now" : "Coins"; }
+let minting = null;
+async function raw(path, body) {
+  const r = await fetch(`${HUB}/coins/${path}?site=${SITE}`, { method: body ? "POST" : "GET", headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(guest ? { "X-Hub-Guest": guest } : {}) }, body: body ? JSON.stringify({ ...body, guest }) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (j.guest && j.guest !== guest) { guest = j.guest; localStorage.setItem("hub_guest", guest); }
+  return { r, j };
+}
+// Balance mints/refreshes the guest (hub >= 1.2.12: award/spend never mint). Shared promise so parallel awards wait for one mint.
+function mint() { return (minting ??= raw("balance").then(({ j }) => { if (j.ok && typeof j.balance === "number") show(j.balance); else show(null); return j; }).catch(() => (show(null), null)).finally(() => { minting = null; })); }
 async function call(path, body) {
   if (native) return null;
   try {
-    const r = await fetch(`${HUB}/coins/${path}?site=${SITE}`, { method: body ? "POST" : "GET", headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(guest ? { "X-Hub-Guest": guest } : {}) }, body: body ? JSON.stringify({ ...body, guest }) : undefined });
-    const j = await r.json().catch(() => ({}));
-    if (j.guest && j.guest !== guest) { guest = j.guest; localStorage.setItem("hub_guest", guest); }
+    if (path === "balance") { const j = await mint(); return j && j.ok ? j : null; }
+    if (!guest) await mint();
+    if (!guest) return { ok: false, status: 0, error: "no_guest" };
+    let { r, j } = await raw(path, body);
+    if (j.error === "guest_required" || j.error === "bad_guest") { guest = null; localStorage.removeItem("hub_guest"); await mint(); if (guest) ({ r, j } = await raw(path, body)); }
     if (j.ok && typeof j.balance === "number") { show(j.balance); return j; }
-    if (path === "balance") show(null);
     return { ok: false, status: r.status, error: j.error || "error", ...j };
-  } catch { if (path === "balance") show(null); return null; }
+  } catch { return null; }
 }
 const day = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 function isoWeek(d = new Date()) { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const n = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - n); const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return t.getUTCFullYear() + "-W" + String(Math.ceil(((t - y) / 864e5 + 1) / 7)).padStart(2, "0"); }
