@@ -10,7 +10,7 @@
   "dependencies": {
     "@capacitor/android": "^7.6.9",
     "@capacitor/camera": "^7.0.5",
-    "@capacitor/core": "^7.6.9",
+    "@capacitor/core": "^8.5.3",
     "@capacitor/haptics": "^7.0.5",
     "@capacitor/local-notifications": "^7.0.7",
     "@capacitor/splash-screen": "^7.0.5",
