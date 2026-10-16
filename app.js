@@ -1,5 +1,6 @@
 // Dance Coach — on-device pose scoring (MediaPipe). Camera frames never leave the device.
 import { sfx, haptic, S, setAudio } from "./ui.js";
+import { initPads, rumble } from "./gamepad.js";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
@@ -59,6 +60,7 @@ async function landmarker() {
 
 // ---- state ----
 let stream = null, lm = null, refLM = null, playing = false, t0 = 0, sum = 0, n = 0, perfect = 0, smooth = null, lastDet = 0, lastPose = null;
+let paused = false, pausedAt = 0;
 let lastBuzz = 0, rec = null, chunks = [], refVideo = null, refCache = new Map();
 const cam = $("#cam"), stage = $("#stage"), g = stage.getContext("2d"), coach = $("#coach"), cg = coach.getContext("2d");
 const status = (s) => ($("#status").textContent = s);
@@ -86,11 +88,13 @@ $("#fileIn").onchange = async (e) => {
 };
 
 function start() {
+  paused = false; document.body.classList.remove("paused");
   sum = n = perfect = 0; smooth = null; playing = true; $("#result").hidden = true;
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000; }
   $("#startBtn").textContent = "■ Stop"; document.body.classList.add("dancing");
 }
 function stop() {
+  if (paused) { paused = false; document.body.classList.remove("paused"); ac?.resume(); window.speechSynthesis?.resume(); status("Stopped."); }
   playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
     $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div>`;
@@ -109,10 +113,16 @@ $("#recBtn").onclick = () => {
   rec.start(500); $("#recBtn").textContent = "⏹ Stop recording"; if (!playing) start();
 };
 
+function setPaused(on) {
+  if (!playing || on === paused) return; paused = on; document.body.classList.toggle("paused", on);
+  if (on) { pausedAt = performance.now(); refVideo?.pause(); ac?.suspend(); window.speechSynthesis?.pause(); status("⏸ Paused — press Start/▶ to resume."); $("#startBtn").textContent = "▶ Resume"; }
+  else { t0 += performance.now() - pausedAt; if (refVideo) refVideo.play(); ac?.resume(); window.speechSynthesis?.resume(); status("Dancing!"); $("#startBtn").textContent = "■ Stop"; }
+}
+window.dcPause = setPaused;
 const WORD = (s) => (s > 0.8 ? ["Perfect!", "#FFD23F"] : s > 0.65 ? ["Great!", "#B8FF00"] : s > 0.5 ? ["Good", "#7fd3ff"] : ["Keep going!", "#fff"]);
 function frame(now) {
   requestAnimationFrame(frame);
-  const t = playing ? (refVideo ? refVideo.currentTime : (now - t0) / 1000) : 0, bpm = track.bpm;
+  const t = playing ? (refVideo ? refVideo.currentTime : ((paused ? pausedAt : now) - t0) / 1000) : 0, bpm = track.bpm;
   const c = coachAt(t, bpm); let ref = c.pose, refV;
   if (refVideo && refLM && refVideo.readyState >= 2) { const k = Math.round(refVideo.currentTime * 10); let r = refCache.get(k); if (!r) { try { r = poseAngles(refLM.detectForVideo(refVideo, now + 0.5).landmarks?.[0]); } catch {} if (r) refCache.set(k, r); } if (r) { ref = r.a; refV = r.v; } }
   cg.fillStyle = "#1b1030"; cg.fillRect(0, 0, 300, 300); drawCoach(cg, 300, 300, ref, "#B8FF00", true);
@@ -124,10 +134,11 @@ function frame(now) {
   if (lastPose && stream) { g.strokeStyle = "#ff4fd8"; g.lineWidth = 6; g.lineCap = "round"; for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.beginPath(); g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); g.stroke(); } }
   g.restore();
   g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, "#B8FF00", true); g.restore();
-  if (playing && lastPose && stream) {
+  if (playing && !paused && lastPose && stream) {
     const u = poseAngles(lastPose), s = u && similarity(u, ref, refV);
-    if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); } } }
+    if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); } } }
   }
+  if (playing && paused) { g.font = "900 56px system-ui"; g.textAlign = "center"; g.fillStyle = "#fff"; g.fillText("⏸ Paused", W / 2, H / 2); }
   if (playing) { const [w, col] = WORD(smooth ?? 0); g.font = "900 40px system-ui"; g.textAlign = "center"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(stream ? w : "Turn on camera to score", W / 2, H - 70); g.shadowBlur = 0;
     g.fillStyle = "rgba(255,255,255,.25)"; g.fillRect(20, H - 40, W - 40, 16); g.fillStyle = col; g.fillRect(20, H - 40, (W - 40) * (smooth ?? 0), 16);
     g.font = "700 20px system-ui"; g.textAlign = "left"; g.fillStyle = "#fff"; g.fillText(`Dance Coach · ${n > 0 ? Math.round((sum / n) * 100) : 0}%`, 16, 32); }
@@ -148,25 +159,13 @@ function syncLock() {
 }
 setInterval(syncLock, 200);
 
-// ---- Gamepad: ignore steering wheels; A/Start toggles play ----
-const WHEEL_RE = /moza|wheel|racing|g29|g920|t300|fanatec|logitech g/i;
-export function safePad(p) {
-  if (!p || !p.connected || WHEEL_RE.test(p.id)) return false;
-  if (p.mapping !== "standard" && p.axes.length <= 2) return false; // single steering axis (+pedal) → wheel-like
-  return true;
-}
-const padPrev = new Map();
-function pollPads() {
-  requestAnimationFrame(pollPads);
-  if (!navigator.getGamepads) return;
-  for (const p of navigator.getGamepads()) {
-    if (!safePad(p)) continue;
-    const down = !!(p.buttons[0]?.pressed || p.buttons[9]?.pressed), was = padPrev.get(p.index);
-    if (down && !was) $("#startBtn").click();
-    padPrev.set(p.index, down);
-  }
-}
-requestAnimationFrame(pollPads);
+// ---- Gamepad: full controller support lives in gamepad.js ----
+initPads({
+  isPlaying: () => playing, isPaused: () => paused,
+  start: () => { if (!playing) start(); else if (paused) setPaused(false); else setPaused(true); },
+  song: (d) => { if (playing) return; const i = (TRACKS.indexOf(track) + d + TRACKS.length) % TRACKS.length; track = TRACKS[i]; $("#track").value = track.id; status(`Song: ${track.name}`); },
+  stop: () => playing && stop(),
+});
 
 // ---- Coach host: "Coach Disco Dan" — local, kid-safe lines ----
 const HOST = "Coach Disco Dan";
@@ -232,6 +231,7 @@ window.addEventListener("dc-settings", (e) => { if (e.detail === "voice" && S.vo
 // hook moments
 let wasPlaying = false, goodRun = 0, badRun = 0;
 setInterval(() => {
+  if (paused) return;
   if (playing && !wasPlaying) { goodRun = badRun = 0; say("start", true); sfx("start", 0.6); haptic("medium"); }
   if (!playing && wasPlaying && n > 20) { say("end", true); sfx("cheer", 0.7); setTimeout(() => sfx("end", 0.6), 300); haptic("success"); }
   wasPlaying = playing;

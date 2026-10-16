@@ -5,7 +5,7 @@ const P = (native && Cap.Plugins) || {};
 export const isNative = native;
 
 // ---- settings (localStorage only, never leaves the device) ----
-const DEF = { sounds: true, voice: false, haptics: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches };
+const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches };
 export const S = Object.assign({}, DEF, JSON.parse(localStorage.getItem("dc.settings") || "{}"));
 if (localStorage.getItem("dc.voice") === "1") S.voice = true; // migrate old toggle
 const save = () => localStorage.setItem("dc.settings", JSON.stringify(S));
@@ -16,6 +16,7 @@ applyMotion();
 const KINDS = { click: 4, perfect: 3, cheer: 4, start: 3, end: 3 };
 const ext = new Audio().canPlayType('audio/ogg; codecs="vorbis"') ? "ogg" : "mp3";
 let getAudio = null; const bufs = {}, last = {};
+export const saveSettings = () => save();
 export function setAudio(fn) { getAudio = fn; }
 async function buf(ac, url) { if (!bufs[url]) bufs[url] = fetch(url).then((r) => r.arrayBuffer()).then((a) => ac.decodeAudioData(a)).catch(() => (delete bufs[url], null)); return bufs[url]; }
 export async function sfx(kind, vol = 0.8) {
@@ -62,7 +63,7 @@ function onboarding() {
 }
 
 function settings() {
-  const rows = [["sounds", "Sound effects", "Clicks, cheers and stingers"], ["voice", "Coach voice", "Coach Disco Dan reads his jokes out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["reduced", "Reduce motion", "Fewer animations"]];
+  const rows = [["sounds", "Sound effects", "Clicks, cheers and stingers"], ["voice", "Coach voice", "Coach Disco Dan reads his jokes out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"]];
   if (native) rows.push(["reminder", "Daily reminder", "A gentle nudge for the daily challenge"]);
   const box = $("#settingsList");
   box.innerHTML = rows.map(([k, t, d]) => `<button class="switch" role="switch" aria-checked="${!!S[k]}" data-k="${k}"><span><b>${t}</b><small>${d}</small></span><i aria-hidden="true"></i></button>`).join("")
