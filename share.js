@@ -37,7 +37,7 @@ async function doShare() {
     if (r && r.error) { msg(r.error === "too_long" ? "Clips must be 30 seconds or less." : r.error === "kids_mode" ? "Sharing is off in kids mode." : r.error === "rate_limited" ? "Too many uploads today. Try again tomorrow." : "Couldn't share right now (" + r.error + ")."); return; }
     const st = r && r.item && r.item.status;
     msg(st === "approved" ? "🎉 Shared! It's live in Community dances." : st === "rejected" ? "That clip didn't pass the safety check, so it wasn't shared." : "Thanks! It'll appear after a quick safety review.");
-    clip = null; ui();
+    clip = null; ui(); const g = $("#galleryList"); if (g) { g.innerHTML = ""; delete g.dataset.m; mountGallery(); }
   } catch { msg("Couldn't reach the sharing service. Try again later."); }
 }
 export function initShare() {
