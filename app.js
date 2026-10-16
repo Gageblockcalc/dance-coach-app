@@ -3,6 +3,7 @@ import { sfx, haptic, S, setAudio } from "./ui.js";
 import { initPads, rumble } from "./gamepad.js";
 import { initI18n } from "./i18n.js";
 import { coins } from "./coins.js";
+import { seasonLine } from "./seasons.js";
 import { initShop, coachColor } from "./shop.js";
 import { initControls, showControls } from "./controls.js";
 initI18n();
@@ -91,13 +92,13 @@ $("#camBtn").onclick = async () => {
   if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; $("#camBtn").textContent = "📷 Turn on camera"; return; }
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
-    cam.srcObject = stream; await cam.play(); $("#camBtn").textContent = "Camera off"; status("Loading pose tracker (on this device)…");
+    cam.srcObject = stream; await cam.play(); $("#camBtn").textContent = "Camera off"; status("Loading pose tracker (on this device)… " + (seasonLine() || "Stretch those dancing feet!"));
     lm ??= await landmarker(); status("Ready! Pick a track and press Start.");
   } catch (e) { status(stream ? "Pose tracker couldn't load: " + e.message : (window.Capacitor?.isNativePlatform?.() ? "Camera blocked — allow it in Android Settings › Apps › Dance Coach › Permissions." : "Camera blocked — allow it in your browser's site settings.")); }
 };
 $("#fileIn").onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return; refVideo = document.createElement("video"); refVideo.src = URL.createObjectURL(f); refVideo.muted = false; refVideo.playsInline = true; refCache.clear();
-  status("Reference video loaded — moves are read from it on your device."); try { refLM ??= await landmarker(); } catch { status("Pose tracker couldn't load."); }
+  status("Reference video loaded — moves are read from it on your device."); status("Reading your video… " + (seasonLine() || "")); try { refLM ??= await landmarker(); } catch { status("Pose tracker couldn't load."); }
 };
 
 function start() {
@@ -132,7 +133,7 @@ function stop() {
   if (paused) { paused = false; document.body.classList.remove("paused"); ac?.resume(); window.speechSynthesis?.resume(); status("Stopped."); }
   playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
-    $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div><div class="row grow" style="margin-top:10px"><button id="cardBtn" class="b-sky">🖼 Save result card</button><button id="shareBtn" class="b-gold">📣 Share</button></div>`;
+    $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div>${seasonLine() ? `<div class="note" style="margin-top:6px">🎙️ ${seasonLine()}</div>` : ""}<div class="row grow" style="margin-top:10px"><button id="cardBtn" class="b-sky">🖼 Save result card</button><button id="shareBtn" class="b-gold">📣 Share</button></div>`;
     lastResult = { pct, stars, perfect, daily: mode === "daily", song: track.name };
     $("#cardBtn").onclick = () => resultCard().then((b) => { if (!b) return; const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dance-coach-result.png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
     $("#shareBtn").onclick = () => share();
@@ -274,6 +275,8 @@ document.head.appendChild(css);
 let hideT = 0;
 function say(kind, force) {
   const nowT = performance.now(); if (!force && nowT - lastSay < 8000) return; lastSay = nowT;
+  const sl = kind !== "miss" && Math.random() < 0.5 ? seasonLine() : null;
+  if (sl) { bubble.querySelector("span").textContent = sl; bubble.classList.add("show"); clearTimeout(hideT); hideT = setTimeout(() => bubble.classList.remove("show"), 4500); if (S.voice && "speechSynthesis" in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(sl); u.rate = 1.05; u.pitch = 1.1; speechSynthesis.speak(u); } return; }
   const L = LINES[kind]; let i; do { i = Math.floor(Math.random() * L.length); } while (L.length > 1 && i === lastIdx[kind]); lastIdx[kind] = i;
   bubble.querySelector("span").textContent = L[i]; bubble.classList.add("show"); clearTimeout(hideT); hideT = setTimeout(() => bubble.classList.remove("show"), 4500);
   if (S.voice && "speechSynthesis" in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(L[i]); u.rate = 1.05; u.pitch = 1.1; speechSynthesis.speak(u); }
