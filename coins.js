@@ -13,14 +13,16 @@ async function call(path, body) {
     if (j.guest && j.guest !== guest) { guest = j.guest; localStorage.setItem("hub_guest", guest); }
     if (j.ok && typeof j.balance === "number") { show(j.balance); return j; }
     if (path === "balance") show(null);
-    return null;
+    return { ok: false, status: r.status, error: j.error || "error", ...j };
   } catch { if (path === "balance") show(null); return null; }
 }
 const day = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 function isoWeek(d = new Date()) { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const n = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - n); const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return t.getUTCFullYear() + "-W" + String(Math.ceil(((t - y) / 864e5 + 1) / 7)).padStart(2, "0"); }
 export const coins = {
   // free_chest: once per 4h window (server caps it too). buy_cosmetic_*: spend for cosmetics (UI not built yet).
-  chest() { return this.award("free_chest", "chest-" + Math.floor(Date.now() / 144e5)); },
+  native,
+  async chest() { const r = await this.award("free_chest", "chest-" + Date.now().toString(36)); if (r && r.ok && !r.skipped) localStorage.setItem("dc.chestAt", Date.now()); return r; },
+  chestLeft() { return Math.max(0, +(localStorage.getItem("dc.chestAt") || 0) + 144e5 - Date.now()); },
   balance: () => call("balance"),
   award: (event, key) => call("award", { event, idempotency_key: key }),
   spend: (event, key) => call("spend", { event, idempotency_key: key }),

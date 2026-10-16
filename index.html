@@ -36,6 +36,7 @@ body.dancing .hide-dance{display:none}.pause-only{display:none!important}body.pa
 .link{background:none;color:var(--lime);text-decoration:underline;min-height:48px;padding:0 8px;font-weight:600}
 html.reduce *{animation:none!important;transition:none!important}@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 button,.btn,.chip{overflow-wrap:anywhere;text-align:center}h2,p{overflow-wrap:anywhere}
+.shopItem{display:flex;align-items:center;gap:10px;padding:6px 0}.shopItem i{flex:0 0 28px;height:28px;border-radius:50%;border:2px solid #fff3}.shopItem span{flex:1;min-width:0}.shopItem small{display:block;color:var(--mut)}.shopItem button{min-height:44px;font-size:15px;padding:0 12px}
 </style></head>
 <body><main>
 <header><h1>💃 <span>Dance Coach</span></h1><button id="helpBtn" class="icon" aria-label="Controls guide (long-press)">?</button><span id="coins" class="chip" hidden aria-live="polite"></span><button id="settingsBtn" class="icon" aria-label="Settings">⚙️</button></header>
@@ -64,6 +65,7 @@ button,.btn,.chip{overflow-wrap:anywhere;text-align:center}h2,p{overflow-wrap:an
  <label class="row"><span data-i18n="lang">Language</span><select id="langSel" aria-label="Language" style="flex:1"></select></label>
  <label class="row"><span>Quality</span><select id="qualSel" aria-label="Quality" style="flex:1"><option value="auto">Auto</option><option value="low">Low (battery saver)</option><option value="high">High</option></select></label>
  <div id="settingsList"></div>
+ <section id="shop" hidden><h3>🛍️ Coin shop</h3><button id="chestBtn" class="b-gold">🎁 Open free chest</button><p class="shopMsg note" role="status" aria-live="polite"></p><div class="shopList"></div><p class="note" style="color:var(--mut)">Coins are just for fun: no real money, nothing to buy with cash.</p></section>
  <div class="row"><button id="privacyBtn" class="link" data-i18n="privacyBtn">Privacy policy</button><button id="replayOb" class="link" data-i18n="tutorial">Show tutorial again</button><a class="link btn" href="CREDITS.md" data-i18n="credits">Credits</a><a class="link btn" href="mailto:tekjeep@gmail.com?subject=Dance%20Coach%20feedback" data-i18n="feedback">Feedback</a><a class="link btn" href="whats-new.html">What's new</a></div><p class="note ver" style="color:var(--mut)"></p>
 </div></div>
 

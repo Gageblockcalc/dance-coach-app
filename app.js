@@ -3,10 +3,11 @@ import { sfx, haptic, S, setAudio } from "./ui.js";
 import { initPads, rumble } from "./gamepad.js";
 import { initI18n } from "./i18n.js";
 import { coins } from "./coins.js";
+import { initShop, coachColor } from "./shop.js";
 import { initControls, showControls } from "./controls.js";
 initI18n();
 coins.onOpen();
-initControls(); window.dcShowControls = showControls;
+initControls(); window.dcShowControls = showControls; initShop();
 { const qs = document.getElementById("qualSel"); if (qs) { qs.value = localStorage.getItem("dc.quality") || "auto"; qs.onchange = () => window.dcSetQuality(qs.value); } }
 for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VERSION || "";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
@@ -143,7 +144,7 @@ function frame(now) {
   const t = playing ? (refVideo ? refVideo.currentTime : ((paused ? pausedAt : now) - t0) / 1000) : 0, bpm = track.bpm;
   const c = coachAt(t, bpm); let ref = c.pose, refV;
   if (refVideo && refLM && refVideo.readyState >= 2) { const k = Math.round(refVideo.currentTime * 10); let r = refCache.get(k); if (!r) { try { r = poseAngles(refLM.detectForVideo(refVideo, now + 0.5).landmarks?.[0]); } catch {} if (r) refCache.set(k, r); } if (r) { ref = r.a; refV = r.v; } }
-  cg.fillStyle = "#1b1030"; cg.fillRect(0, 0, 300, 300); drawCoach(cg, 300, 300, ref, "#B8FF00", true);
+  cg.fillStyle = "#1b1030"; cg.fillRect(0, 0, 300, 300); drawCoach(cg, 300, 300, ref, coachColor(), true);
   $("#move").textContent = refVideo ? "Following your video" : `${MOVES[c.idx].name} — ${MOVES[c.idx].tip} · next: ${MOVES[c.next].name}`;
   const W = stage.width, H = stage.height;
   g.save(); g.translate(W, 0); g.scale(-1, 1);
@@ -151,7 +152,7 @@ function frame(now) {
   if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(cam, now).landmarks?.[0] || null; } catch {} detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
   if (lastPose && stream) { g.strokeStyle = "#ff4fd8"; g.lineWidth = 6; g.lineCap = "round"; for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.beginPath(); g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); g.stroke(); } }
   g.restore();
-  g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, "#B8FF00", true); g.restore();
+  g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, coachColor(), true); g.restore();
   if (playing && !paused && lastPose && stream) {
     const u = poseAngles(lastPose), s = u && similarity(u, ref, refV);
     if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
