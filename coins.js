@@ -24,6 +24,9 @@ export const coins = {
   balance: () => call("balance"),
   award: (event, key) => call("award", { event, idempotency_key: key }),
   spend: (event, key) => call("spend", { event, idempotency_key: key }),
+  /** Server-priced cosmetics — always POST /coins/spend (never award). */
+  buyCosmeticSmall(itemId) { return this.spend("buy_cosmetic_small", "cos-s-" + String(itemId || "x").slice(0, 40)); },
+  buyCosmeticLarge(itemId) { return this.spend("buy_cosmetic_large", "cos-l-" + String(itemId || "x").slice(0, 40)); },
   // Hooks used by app.js
   onOpen() { if (native) return; this.balance().then(() => this.award("daily_streak", "streak-" + day())); },
   onSongEnd({ stars, daily, perfect, streak = 0 }) {
