@@ -4,11 +4,12 @@ import { initPads, rumble } from "./gamepad.js";
 import { initI18n } from "./i18n.js";
 import { coins } from "./coins.js";
 import { seasonLine } from "./seasons.js";
+import { initShare } from "./share.js";
 import { initShop, coachColor } from "./shop.js";
 import { initControls, showControls } from "./controls.js";
 initI18n();
 coins.onOpen();
-initControls(); window.dcShowControls = showControls; initShop();
+initControls(); window.dcShowControls = showControls; initShop(); initShare();
 { const ds = document.getElementById("diffSel"); if (ds) { ds.value = localStorage.getItem("dc.diff") || "normal"; ds.onchange = () => localStorage.setItem("dc.diff", ds.value); } }
 { const qs = document.getElementById("qualSel"); if (qs) { qs.value = localStorage.getItem("dc.quality") || "auto"; qs.onchange = () => window.dcSetQuality(qs.value); } }
 for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VERSION || "";
@@ -137,8 +138,8 @@ function buddyCtx() { try { const sc = playing ? (paused ? "paused" : "dancing")
 // Burst guard: hub may answer 200 {source:'slow'} (or 429 slow_down). Show a friendly line instead of a blank/odd reply.
 if (!isNative) { const of = window.fetch.bind(window); window.fetch = async (u, o) => { const r = await of(u, o); const url = String(u && u.url || u);
   if (!url.includes("/ai?site=dancecoach")) return r;
-  try { const j = await r.clone().json(); if (j && (j.source === "slow" || j.error === "slow_down" || r.status === 429)) {
-    return new Response(JSON.stringify({ ...j, reply: j.reply && j.source !== "slow" ? j.reply : (j.reply || "Whoa, lots of questions! Give me a few seconds to catch my breath, then ask again. 💃") }), { status: 200, headers: { "Content-Type": "application/json" } }); } } catch {}
+  try { const j = await r.clone().json(); if (j && (j.source === "slow" || j.error === "slow_down" || j.error === "ip_daily_cap" || j.error === "site_daily_cap" || r.status === 429)) {
+    return new Response(JSON.stringify({ ...j, reply: j.reply && j.source !== "slow" ? j.reply : (j.reply || (/daily_cap/.test(j.error || "") ? "I've answered lots of questions today! Let's dance, and ask me again tomorrow. 💃" : "Whoa, lots of questions! Give me a few seconds to catch my breath, then ask again. 💃")) }), { status: 200, headers: { "Content-Type": "application/json" } }); } } catch {}
   return r; }; }
 if (!isNative) addEventListener("load", () => setTimeout(() => {
   const sc = document.createElement("script"); sc.src = "https://oppsgo.com/ai-buddy.js?v=2"; sc.defer = true;
@@ -165,8 +166,8 @@ $("#recBtn").onclick = () => {
   if (!type) { status("Clip recording isn't supported in this browser."); return; }
   chunks = []; rec = new MediaRecorder(new MediaStream(tracks), { mimeType: type, videoBitsPerSecond: 4e6 });
   rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-  rec.onstop = () => { const blob = new Blob(chunks, { type }), a = $("#dl"); a.href = URL.createObjectURL(blob); a.download = `dance-coach-${Date.now()}.${type.includes("mp4") ? "mp4" : "webm"}`; a.hidden = false; a.textContent = `⬇ Download clip (${(blob.size / 1e6).toFixed(1)} MB)`; $("#recBtn").textContent = "⏺ Record clip"; status("Clip ready — download it and post to TikTok."); };
-  rec.start(500); $("#recBtn").textContent = "⏹ Stop recording"; if (!playing) start();
+  rec.onstop = () => { const blob = new Blob(chunks, { type }), a = $("#dl"); clearTimeout(window.__recCap); window.dispatchEvent(new CustomEvent("dc-clip", { detail: { blob, type, duration: (performance.now() - (window.__recT0 || 0)) / 1000 } })); a.href = URL.createObjectURL(blob); a.download = `dance-coach-${Date.now()}.${type.includes("mp4") ? "mp4" : "webm"}`; a.hidden = false; a.textContent = `⬇ Download clip (${(blob.size / 1e6).toFixed(1)} MB)`; $("#recBtn").textContent = "⏺ Record clip"; status("Clip ready — download it and post to TikTok."); };
+  rec.start(500); window.__recT0 = performance.now(); if (localStorage.getItem("dc.share") === "1") window.__recCap = setTimeout(() => { if (rec && rec.state === "recording") rec.stop(); }, 29500); $("#recBtn").textContent = "⏹ Stop recording"; if (!playing) start();
 };
 
 function setPaused(on) {
