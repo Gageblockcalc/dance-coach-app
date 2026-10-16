@@ -129,6 +129,15 @@ async function share() {
   try { await navigator.clipboard.writeText(`${text} ${url}`); toastMsg("🔗 Link copied!"); } catch { toastMsg(url); }
 }
 window.dcShare = share; window.dcCardFor = (r) => { lastResult = r; return resultCard(); }; // also used by tests
+// ---- Shared AI buddy (web only; TODO native: needs data-safety/privacy update before shipping in the APK) ----
+const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+function buddyCtx() { try { const sc = playing ? (paused ? "paused" : "dancing") : !$("#settings").hidden ? "settings" : !$("#result").hidden ? "results" : "home";
+  window.OppsBuddy?.setContext(`Dance Coach (family dance game, camera scores poses on-device). Screen: ${sc}. Mode: ${mode}. Song: ${track.name}. Difficulty: ${localStorage.getItem("dc.diff") || "normal"}. Last score: ${lastResult ? lastResult.pct + "% " + lastResult.stars + " stars" : "none yet"}.`); } catch {} }
+if (!isNative) addEventListener("load", () => setTimeout(() => {
+  const sc = document.createElement("script"); sc.src = "https://oppsgo.com/ai-buddy.js"; sc.defer = true;
+  Object.assign(sc.dataset, { site: "dancecoach", game: "dancecoach", mode: "kids", position: "bottom-left" });
+  sc.onload = () => { buddyCtx(); setInterval(buddyCtx, 5000); }; document.head.append(sc);
+}, 1500));
 function stop() {
   if (paused) { paused = false; document.body.classList.remove("paused"); ac?.resume(); window.speechSynthesis?.resume(); status("Stopped."); }
   playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
@@ -286,7 +295,7 @@ window.addEventListener("dc-settings", (e) => { if (e.detail === "voice" && S.vo
 let wasPlaying = false, goodRun = 0, badRun = 0;
 setInterval(() => {
   if (paused) return;
-  if (playing && !wasPlaying) { goodRun = badRun = 0; say("start", true); sfx("start", 0.6); haptic("medium"); }
+  if (playing && !wasPlaying) { try { window.OppsBuddy?.close(); } catch {} goodRun = badRun = 0; say("start", true); sfx("start", 0.6); haptic("medium"); }
   if (!playing && wasPlaying && n > 20) { say("end", true); sfx("cheer", 0.7); setTimeout(() => sfx("end", 0.6), 300); haptic("success"); }
   wasPlaying = playing;
   if (playing && stream && smooth != null) {
