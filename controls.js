@@ -31,12 +31,14 @@ body.dancing:not(.paused) #ctl{top:calc(8px + var(--st));bottom:auto;font-size:1
   addEventListener("keydown", (e) => { if ((e.key === "h" || e.key === "H" || e.key === "?") && !isField(e.target) && !e.repeat) show(true); });
   addEventListener("keyup", (e) => { if (e.key === "h" || e.key === "H" || e.key === "?") show(false); });
   let held = 0, padShown = false;
-  (function poll(ts) {
+  let polling = false; const startPoll = () => { if (!polling) { polling = true; requestAnimationFrame(poll); } };
+  addEventListener("gamepadconnected", startPoll); if ([...(navigator.getGamepads ? navigator.getGamepads() : [])].some(Boolean)) startPoll();
+  function poll(ts) {
     let sel = false;
     for (const p of navigator.getGamepads ? navigator.getGamepads() : []) if (safePad(p)) { if (p.buttons.some((x) => x.pressed)) { mode = "pad"; famNow = family(p.id); } if (p.buttons[8]?.pressed) sel = true; }
     if (sel) { held ||= ts; if (ts - held > 500 && !padShown) { padShown = true; show(true); } }
     else { if (padShown) show(false); held = 0; padShown = false; }
-    requestAnimationFrame(poll);
-  })(0);
+    if ([...(navigator.getGamepads ? navigator.getGamepads() : [])].some(Boolean)) requestAnimationFrame(poll); else polling = false;
+  }
   if (!localStorage.getItem("dc.ctlHint")) { localStorage.setItem("dc.ctlHint", "1"); setTimeout(() => showControls(4000), 1200); }
 }

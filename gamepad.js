@@ -165,7 +165,10 @@ function poll(now = performance.now()) {
   const dir = dx || dy ? `${dx},${dy}` : "";
   if (!dir) dirHeld = ""; else if (dir !== dirHeld) { dirHeld = dir; dirNext = now + FIRST; moveFocus(dx, dy); } else if (now >= dirNext) { dirNext = now + REPEAT; moveFocus(dx, dy); }
 }
-function loop(t) { requestAnimationFrame(loop); poll(t); }
+let looping = false;
+const anyPad = () => [...(navigator.getGamepads ? navigator.getGamepads() : [])].some(Boolean);
+function loop(t) { poll(t); if (anyPad()) requestAnimationFrame(loop); else looping = false; }
+function startLoop() { if (!looping) { looping = true; requestAnimationFrame(loop); } }
 
 // ---- press-to-bind wizard ----
 const STEPS = [[A, "Select / confirm"], [B, "Back"], [START, "Start / pause"], [SEL, "Settings"], [LB, "Previous song"], [RB, "Next song"]];
@@ -206,8 +209,8 @@ function settingsRows() {
 
 export function initPads(hooks) {
   H = hooks; if (S.rumble == null) { S.rumble = true; saveSettings(); }
-  window.addEventListener("gamepadconnected", () => poll());
+  window.addEventListener("gamepadconnected", () => { poll(); startLoop(); });
   window.addEventListener("gamepaddisconnected", () => poll());
-  settingsRows(); requestAnimationFrame(loop);
+  settingsRows(); startLoop();
 }
 export const _test = { poll, readPad, family, nextStep, openWizard, get wiz() { return wiz; } };

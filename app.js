@@ -8,6 +8,7 @@ import { initControls, showControls } from "./controls.js";
 initI18n();
 coins.onOpen();
 initControls(); window.dcShowControls = showControls; initShop();
+{ const ds = document.getElementById("diffSel"); if (ds) { ds.value = localStorage.getItem("dc.diff") || "normal"; ds.onchange = () => localStorage.setItem("dc.diff", ds.value); } }
 { const qs = document.getElementById("qualSel"); if (qs) { qs.value = localStorage.getItem("dc.quality") || "auto"; qs.onchange = () => window.dcSetQuality(qs.value); } }
 for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VERSION || "";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
@@ -77,7 +78,10 @@ function fillTracks() { const sel = $("#track"); sel.innerHTML = TRACKS.map((t) 
 fillTracks();
 $("#track").onchange = (e) => (track = TRACKS.find((t) => t.id === e.target.value));
 const best = () => JSON.parse(localStorage.getItem("dc.best") || "{}");
-function showDaily() { const d = dailyRoutine(), b = best()[today], st = streak(); $("#daily").innerHTML = `<b class="big">🏆 Today's challenge</b><div>${d.track.name} · ${d.routine.length} moves · 🔥 ${st}-day streak${b ? ` · best today <b>${b}%</b>` : ""}</div><div style="margin-top:6px">${d.routine.slice(1).map((i) => `<span class="chip">${MOVES[i].name}</span>`).join("")}</div>`; }
+function weekCount() { const b = best(), d = new Date(); let c = 0; for (let i = 0; i < 7; i++) { const k = new Date(d - i * 864e5).toISOString().slice(0, 10); if (b[k] != null) c++; } return c; }
+function untilTomorrow() { const n = new Date(), m = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1)); const mins = Math.max(0, Math.round((m - n) / 6e4)); return `${Math.floor(mins / 60)}h ${mins % 60}m`; }
+setInterval(() => { const e = document.getElementById("dcCount"); if (e) e.textContent = untilTomorrow(); }, 60000);
+function showDaily() { const d = dailyRoutine(), b = best()[today], st = streak(), wk = weekCount(); $("#daily").innerHTML = `<b class="big">🏆 Routine of the Day</b><div>${d.track.name} · ${d.routine.length} moves · 🔥 ${st}-day streak${b ? ` · best today <b>${b}%</b>` : ""}</div><div class="note" style="color:var(--mut)">${b ? "✅ Done for today! Come back tomorrow for a new routine" : st ? "Dance today to keep your streak alive" : "Start a streak today"} · new routine in <b id="dcCount">${untilTomorrow()}</b> · weekly goal ${Math.min(wk, 5)}/5 ${wk >= 5 ? "🎉" : ""}</div><div style="margin-top:6px">${d.routine.slice(1).map((i) => `<span class="chip">${MOVES[i].name}</span>`).join("")}</div>`; }
 function streak() { const b = best(); let s = 0, d = new Date(); for (;;) { const k = d.toISOString().slice(0, 10); if (b[k] == null) break; s++; d.setUTCDate(d.getUTCDate() - 1); } return s; }
 showDaily();
 $("#dailyBtn").onclick = () => { const d = dailyRoutine(); routine = d.routine; track = d.track; $("#track").value = track.id; mode = "daily"; status("Daily challenge loaded. Turn on camera, then Start."); };
@@ -102,11 +106,36 @@ function start() {
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000; }
   $("#startBtn").textContent = "■ Stop"; document.body.classList.add("dancing");
 }
+let lastResult = null;
+function toastMsg(t) { const e = document.getElementById("padToast"); if (!e) return; e.textContent = t; e.classList.add("show"); clearTimeout(toastMsg.t); toastMsg.t = setTimeout(() => e.classList.remove("show"), 2600); }
+async function resultCard() {
+  if (!lastResult) return null; const c = document.createElement("canvas"); c.width = 1080; c.height = 1350; const x = c.getContext("2d"), r = lastResult;
+  const gr = x.createLinearGradient(0, 0, 1080, 1350); gr.addColorStop(0, "#3a1670"); gr.addColorStop(1, "#120a22"); x.fillStyle = gr; x.fillRect(0, 0, 1080, 1350);
+  x.textAlign = "center"; x.fillStyle = "#B8FF00"; x.font = "900 84px system-ui"; x.fillText("💃 Dance Coach", 540, 170);
+  x.font = "120px system-ui"; x.fillText("⭐".repeat(r.stars) || "💪", 540, 420);
+  x.fillStyle = "#fff"; x.font = "900 200px system-ui"; x.fillText(r.pct + "%", 540, 680);
+  x.font = "700 52px system-ui"; x.fillStyle = "#FFD23F"; x.fillText(`${r.perfect} perfect moments`, 540, 790);
+  x.fillStyle = "#cfc6e6"; x.font = "500 44px system-ui"; x.fillText(r.daily ? "Routine of the Day" : r.song, 540, 870); x.fillText(new Date().toLocaleDateString(), 540, 940);
+  try { const cv = document.getElementById("coach"); x.drawImage(cv, 390, 980, 300, 300); } catch {}
+  x.fillStyle = "#fff"; x.font = "700 40px system-ui"; x.fillText("Can you beat me? dancecoach.pages.dev", 540, 1310);
+  return new Promise((res) => c.toBlob(res, "image/png"));
+}
+async function share() {
+  const url = "https://dancecoach.pages.dev/?ref=share", text = lastResult ? `I scored ${lastResult.pct}% on Dance Coach! Can you beat me?` : "Dance Coach: your camera scores your moves, on-device.";
+  try { const b = lastResult && (await resultCard()); const f = b && new File([b], "dance-coach-result.png", { type: "image/png" });
+    if (f && navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], text, url }); return; }
+    if (navigator.share) { await navigator.share({ title: "Dance Coach", text, url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(`${text} ${url}`); toastMsg("🔗 Link copied!"); } catch { toastMsg(url); }
+}
+window.dcShare = share; window.dcCardFor = (r) => { lastResult = r; return resultCard(); }; // also used by tests
 function stop() {
   if (paused) { paused = false; document.body.classList.remove("paused"); ac?.resume(); window.speechSynthesis?.resume(); status("Stopped."); }
   playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
-    $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div>`;
+    $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div><div class="row grow" style="margin-top:10px"><button id="cardBtn" class="b-sky">🖼 Save result card</button><button id="shareBtn" class="b-gold">📣 Share</button></div>`;
+    lastResult = { pct, stars, perfect, daily: mode === "daily", song: track.name };
+    $("#cardBtn").onclick = () => resultCard().then((b) => { if (!b) return; const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dance-coach-result.png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
+    $("#shareBtn").onclick = () => share();
     coins.onSongEnd({ stars, daily: mode === "daily", perfect, streak: streak() });
     if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); } }
   if (rec && rec.state === "recording") rec.stop();
@@ -138,14 +167,16 @@ const detGap = () => quality === "low" ? Math.max(110, detE * 4) : quality === "
 const partN = () => RM.matches ? 0 : quality === "low" ? 0 : quality === "high" ? 26 : (fpsE < 40 ? 6 : 14);
 function burst(x, y) { for (let i = 0, k = partN(); i < k; i++) { const a = Math.random() * 6.283, v = 2 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 3, life: 1, c: ["#B8FF00", "#FFD23F", "#ff4fd8", "#7fd3ff"][i % 4] }); } }
 function drawParts(g) { if (!parts.length) return; for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; g.fillRect(p.x, p.y, 8, 8); } g.globalAlpha = 1; parts = parts.filter((p) => p.life > 0); }
+let lastIdle = 0, moveTxt = "";
 function frame(now) {
   requestAnimationFrame(frame);
+  if (!playing && !stream && !refVideo && !parts.length) { if (now - lastIdle < 120) return; lastIdle = now; } // idle: ~8 fps, saves battery + main thread
   window.dcPerf.frames++; if (lastF) fpsE = fpsE * 0.95 + (1000 / Math.max(1, now - lastF)) * 0.05; lastF = now;
   const t = playing ? (refVideo ? refVideo.currentTime : ((paused ? pausedAt : now) - t0) / 1000) : 0, bpm = track.bpm;
   const c = coachAt(t, bpm); let ref = c.pose, refV;
   if (refVideo && refLM && refVideo.readyState >= 2) { const k = Math.round(refVideo.currentTime * 10); let r = refCache.get(k); if (!r) { try { r = poseAngles(refLM.detectForVideo(refVideo, now + 0.5).landmarks?.[0]); } catch {} if (r) refCache.set(k, r); } if (r) { ref = r.a; refV = r.v; } }
   cg.fillStyle = "#1b1030"; cg.fillRect(0, 0, 300, 300); drawCoach(cg, 300, 300, ref, coachColor(), true);
-  $("#move").textContent = refVideo ? "Following your video" : `${MOVES[c.idx].name} — ${MOVES[c.idx].tip} · next: ${MOVES[c.next].name}`;
+  { const mt = refVideo ? "Following your video" : `${MOVES[c.idx].name} — ${MOVES[c.idx].tip} · next: ${MOVES[c.next].name}`; if (mt !== moveTxt) { moveTxt = mt; $("#move").textContent = mt; } }
   const W = stage.width, H = stage.height;
   g.save(); g.translate(W, 0); g.scale(-1, 1);
   if (stream && cam.readyState >= 2) g.drawImage(cam, 0, 0, W, H); else { g.fillStyle = "#120a22"; g.fillRect(0, 0, W, H); }
@@ -154,14 +185,14 @@ function frame(now) {
   g.restore();
   g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, coachColor(), true); g.restore();
   if (playing && !paused && lastPose && stream) {
-    const u = poseAngles(lastPose), s = u && similarity(u, ref, refV);
+    const u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV), dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
     if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
   }
   drawParts(g);
   if (playing && paused) { g.font = "900 56px system-ui"; g.textAlign = "center"; g.fillStyle = "#fff"; g.fillText("⏸ Paused", W / 2, H / 2); }
   if (playing) { const [w, col] = WORD(smooth ?? 0); g.font = "900 40px system-ui"; g.textAlign = "center"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(stream ? w : "Turn on camera to score", W / 2, H - 70); g.shadowBlur = 0;
     g.fillStyle = "rgba(255,255,255,.25)"; g.fillRect(20, H - 40, W - 40, 16); g.fillStyle = col; g.fillRect(20, H - 40, (W - 40) * (smooth ?? 0), 16);
-    g.font = "700 20px system-ui"; g.textAlign = "left"; g.fillStyle = "#fff"; g.fillText(`Dance Coach · ${n > 0 ? Math.round((sum / n) * 100) : 0}%`, 16, 32); }
+    g.font = "700 20px system-ui"; g.textAlign = "left"; g.fillStyle = "#fff"; g.fillText(`Dance Coach · ${n > 0 ? Math.round((sum / n) * 100) : 0}%`, 16, 32); g.font = "600 16px system-ui"; g.fillStyle = "rgba(255,255,255,.7)"; g.fillText("dancecoach.pages.dev", 16, 56); }
 }
 requestAnimationFrame(frame);
 if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -256,7 +287,7 @@ setInterval(() => {
   if (!playing && wasPlaying && n > 20) { say("end", true); sfx("cheer", 0.7); setTimeout(() => sfx("end", 0.6), 300); haptic("success"); }
   wasPlaying = playing;
   if (playing && stream && smooth != null) {
-    if (smooth > 0.7) { goodRun++; badRun = 0; if (goodRun === 6) { say("streak"); sfx("perfect", 0.6); haptic("medium"); if (!RM.matches && quality !== "low") stage.animate([{ transform: "translate(0,0)" }, { transform: "translate(-5px,2px)" }, { transform: "translate(4px,-2px)" }, { transform: "translate(0,0)" }], { duration: 260 }); } }
+    if (smooth > 0.7) { goodRun++; badRun = 0; if (goodRun === 6) { if (!(rec && rec.state === "recording")) toastMsg("🔥 Clip-worthy streak! Tap ⏺ Record clip next time."); say("streak"); sfx("perfect", 0.6); haptic("medium"); if (!RM.matches && quality !== "low") stage.animate([{ transform: "translate(0,0)" }, { transform: "translate(-5px,2px)" }, { transform: "translate(4px,-2px)" }, { transform: "translate(0,0)" }], { duration: 260 }); } }
     else if (smooth < 0.4) { badRun++; goodRun = 0; if (badRun === 6) say("miss"); }
     else { goodRun = Math.max(0, goodRun - 1); badRun = Math.max(0, badRun - 1); }
   }
