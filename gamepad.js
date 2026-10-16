@@ -88,8 +88,8 @@ export function rumble(mag = 0.5, ms = 120) {
 
 // ---- UI: toast, hint, focus ring ----
 const css = document.createElement("style");
-css.textContent = `#padToast{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:#1b1030;color:#fff;border:2px solid #7fd3ff;border-radius:14px;padding:8px 14px;font-weight:700;z-index:60;opacity:0;transition:opacity .25s;pointer-events:none}
-#padToast.show{opacity:1}#padHint{position:fixed;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));background:rgba(18,10,34,.88);color:#fff;border-radius:12px;padding:6px 10px;font-size:13px;z-index:15;display:flex;gap:10px;flex-wrap:wrap;max-width:calc(100vw - 20px)}
+css.textContent = `#padToast{position:fixed;top:calc(12px + var(--st));left:50%;transform:translateX(-50%);background:#1b1030;color:#fff;border:2px solid #7fd3ff;border-radius:14px;padding:8px 14px;font-weight:700;z-index:60;opacity:0;transition:opacity .25s;pointer-events:none}
+#padToast.show{opacity:1}#padHint{position:fixed;right:calc(16px + var(--sr));bottom:calc(20px + var(--sb));background:rgba(18,10,34,.88);color:#fff;border-radius:12px;padding:6px 10px;font-size:13px;z-index:15;display:flex;gap:10px;flex-wrap:wrap;max-width:calc(100vw - 20px)}
 #padHint kbd{display:inline-block;min-width:1.4em;text-align:center;background:#fff;color:#1b1030;border-radius:6px;padding:0 4px;font:700 12px system-ui;margin-right:3px}
 body.pad-on :focus{outline:4px solid #FFD23F!important;outline-offset:4px!important;box-shadow:0 0 0 8px rgba(255,210,63,.35)!important}
 html.reduce #padToast{transition:none}`;

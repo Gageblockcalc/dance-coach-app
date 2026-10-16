@@ -1,6 +1,10 @@
 // Dance Coach — on-device pose scoring (MediaPipe). Camera frames never leave the device.
 import { sfx, haptic, S, setAudio } from "./ui.js";
 import { initPads, rumble } from "./gamepad.js";
+import { initI18n } from "./i18n.js";
+import { coins } from "./coins.js";
+initI18n();
+coins.onOpen();
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
@@ -98,6 +102,7 @@ function stop() {
   playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
     $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div>`;
+    coins.onSongEnd({ stars, daily: mode === "daily", perfect });
     if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); } }
   if (rec && rec.state === "recording") rec.stop();
 }
@@ -217,7 +222,7 @@ bubble.id = "host"; bubble.setAttribute("role", "status"); bubble.setAttribute("
 bubble.innerHTML = `<b>🕺 ${HOST}</b><span></span>`;
 document.body.appendChild(bubble);
 const css = document.createElement("style");
-css.textContent = `#host{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));max-width:520px;margin:auto;background:#fff;color:#1b1030;border-radius:20px;padding:12px 16px;font-size:17px;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;gap:4px;z-index:20;opacity:0;transform:translateY(20px);transition:opacity .3s,transform .3s;pointer-events:none}
+css.textContent = `#host{position:fixed;left:calc(16px + var(--sl));right:calc(16px + var(--sr));bottom:calc(20px + var(--sb));max-width:520px;margin:auto;background:#fff;color:#1b1030;border-radius:20px;padding:12px 16px;font-size:17px;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;gap:4px;z-index:20;opacity:0;transform:translateY(20px);transition:opacity .3s,transform .3s;pointer-events:none}
 #host.show{opacity:1;transform:none}@media (prefers-reduced-motion: reduce){#host{transition:none;transform:none}}html.reduce #host{transition:none;transform:none}`;
 document.head.appendChild(css);
 let hideT = 0;

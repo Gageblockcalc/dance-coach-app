@@ -4,6 +4,12 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.webkit.WebView;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.WindowManager;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
 
 /**
@@ -16,6 +22,40 @@ public class MainActivity extends BridgeActivity {
     private static boolean fromPad(int source) {
         return (source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
             || (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK;
+    }
+
+    private String insetJs = null;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(lp);
+        }
+        try {
+            WebView w = getBridge().getWebView();
+            ViewCompat.setOnApplyWindowInsetsListener(w, (v, wi) -> {
+                Insets i = wi.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+                float d = getResources().getDisplayMetrics().density;
+                insetJs = String.format(java.util.Locale.US,
+                    "(function(){var s=document.documentElement.style;s.setProperty('--sat','%.1fpx');s.setProperty('--sab','%.1fpx');s.setProperty('--sal','%.1fpx');s.setProperty('--sar','%.1fpx')})()",
+                    i.top / d, i.bottom / d, i.left / d, i.right / d);
+                js(insetJs);
+                final String ij = insetJs;
+                v.postDelayed(() -> js(ij), 1500);
+                v.postDelayed(() -> js(ij), 4000);
+                return wi;
+            });
+            ViewCompat.requestApplyInsets(w);
+        } catch (Exception ignored) {}
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (insetJs != null) js(insetJs);
     }
 
     private void js(String code) {

@@ -3,4 +3,4 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 rm -rf dist && mkdir -p dist
-cp -r index.html privacy.html app.js ui.js gamepad.js moves.js sw.js manifest.webmanifest icon-192.png icon-512.png CREDITS.md _headers sfx vendor dist/
+cp -r index.html i18n.js coins.js privacy.html app.js ui.js gamepad.js moves.js sw.js manifest.webmanifest icon-192.png icon-512.png CREDITS.md _headers sfx vendor dist/

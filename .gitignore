@@ -8,3 +8,7 @@ android/app/src/main/assets/public/
 *.apk
 *.keystore
 *.jks
+keystore.properties
+*.properties.local
+*.aab
+android/keystore.properties
