@@ -41,6 +41,6 @@ export const coins = {
     if (perfect >= 10) this.award("achievement_perfect_10", "ach-perfect-10");
     if (streak >= 7) this.award("achievement_streak_7", "ach-streak-7");
     const songs = +(localStorage.getItem("dc.songs") || 0) + 1; localStorage.setItem("dc.songs", songs);
-    if (songs % 10 === 0) this.award("level_up", "level-" + songs / 10);
+    if (songs % 10 === 0) this.award("level_up", "level-up-" + songs / 10);
   },
 };
