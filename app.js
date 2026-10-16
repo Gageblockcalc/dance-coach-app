@@ -67,7 +67,9 @@ const loadMP = () => (mpP ??= import(`${CDN}/vision_bundle.mjs`).then(async (m) 
 async function landmarker() {
   const { m, fs } = await loadMP();
   const o = (d) => ({ baseOptions: { modelAssetPath: MODEL, delegate: d }, runningMode: "VIDEO", numPoses: 1 });
-  try { return await m.PoseLandmarker.createFromOptions(fs, o("GPU")); } catch { return await m.PoseLandmarker.createFromOptions(fs, o("CPU")); }
+  const want = (new URLSearchParams(location.search).get("delegate") || localStorage.getItem("dc.delegate") || "GPU").toUpperCase();
+  if (want !== "CPU") { try { const l = await m.PoseLandmarker.createFromOptions(fs, o("GPU")); window.dcPerf.backend = "MediaPipe GPU"; return l; } catch {} }
+  const l = await m.PoseLandmarker.createFromOptions(fs, o("CPU")); window.dcPerf.backend = "MediaPipe CPU (wasm)"; return l;
 }
 
 // ---- state ----
@@ -177,8 +179,12 @@ function setPaused(on) {
 }
 window.dcPause = setPaused;
 const WORD = (s) => (s > 0.8 ? ["Perfect!", "#FFD23F"] : s > 0.65 ? ["Great!", "#B8FF00"] : s > 0.5 ? ["Good", "#7fd3ff"] : ["Keep going!", "#fff"]);
+const INRES = +(new URLSearchParams(location.search).get("inres") || 0); let inC = null, inG = null;
+function inSrc() { if (!INRES || !cam.videoWidth) return cam; const sc = INRES / Math.max(cam.videoWidth, cam.videoHeight); if (sc >= 1) return cam; inC ??= document.createElement("canvas"); const w = Math.round(cam.videoWidth * sc), h = Math.round(cam.videoHeight * sc); if (inC.width !== w) { inC.width = w; inC.height = h; inG = inC.getContext("2d"); } inG.drawImage(cam, 0, 0, w, h); return inC; }
 const RM = matchMedia("(prefers-reduced-motion: reduce)");
 let quality = localStorage.getItem("dc.quality") || "auto", fpsE = 60, detE = 0, lastF = 0, parts = [];
+if (new URLSearchParams(location.search).get("bench") === "1") addEventListener("load", () => { const o = document.createElement("div"); o.id = "benchHud"; o.style.cssText = "position:fixed;top:calc(8px + var(--st));inset-inline-start:calc(8px + var(--sl));z-index:90;background:rgba(0,0,0,.8);color:#B8FF00;font:12px/1.3 monospace;padding:6px 8px;border-radius:8px;pointer-events:auto"; document.body.append(o);
+  setInterval(() => { const p = window.dcPerf; o.innerHTML = `backend: ${p.backend || "(start camera)"}<br>inference: ${p.det.toFixed(1)} ms · score: ${(p.score || 0).toFixed(3)} ms<br>FPS: ${p.fps.toFixed(0)} · quality: ${p.q}<br><a href="bench.html" style="color:#fff">▶ full comparison</a>`; }, 500); });
 window.dcPerf = { get fps() { return fpsE; }, get det() { return detE; }, get q() { return quality; }, frames: 0 };
 window.dcSetQuality = (q) => { quality = q; localStorage.setItem("dc.quality", q); };
 const detGap = () => quality === "low" ? Math.max(110, detE * 4) : quality === "high" ? Math.max(45, detE * 1.5) : (fpsE < 40 || detE > 35 ? Math.max(110, detE * 3) : 66); // keep the UI responsive on slow devices
@@ -198,12 +204,12 @@ function frame(now) {
   const W = stage.width, H = stage.height;
   g.save(); g.translate(W, 0); g.scale(-1, 1);
   if (stream && cam.readyState >= 2) g.drawImage(cam, 0, 0, W, H); else { g.fillStyle = "#120a22"; g.fillRect(0, 0, W, H); }
-  if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(cam, now).landmarks?.[0] || null; } catch {} detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
+  if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(inSrc(), now).landmarks?.[0] || null; } catch {} detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
   if (lastPose && stream) { g.strokeStyle = "#ff4fd8"; g.lineWidth = 6; g.lineCap = "round"; for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.beginPath(); g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); g.stroke(); } }
   g.restore();
   g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, coachColor(), true); g.restore();
   if (playing && !paused && lastPose && stream) {
-    const u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV), dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
+    const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
     if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
   }
   drawParts(g);
