@@ -131,10 +131,17 @@ async function share() {
 window.dcShare = share; window.dcCardFor = (r) => { lastResult = r; return resultCard(); }; // also used by tests
 // ---- Shared AI buddy (web only; TODO native: needs data-safety/privacy update before shipping in the APK) ----
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const BUDDY_FACTS = 'Dance Coach facts. SCORING: camera tracks your pose on this device (never uploaded) and compares body angles to the coach; Perfect >80%, Great >65%, Good >50%. End of song: 3 stars at 80%+, 2 at 60%+, 1 at 35%+. DIFFICULTY (Settings): Easy is more forgiving, Normal, Hard is stricter. ROUTINE OF THE DAY: a new 9-move routine every day; dancing it keeps your daily streak; weekly goal is 5 days. COINS (website only, just for fun, no real money): earned from daily streak, first dance of the day, finishing songs, 3 stars, daily/weekly challenge, level-ups, achievements; free chest every 4 hours; spend coins in the Settings shop on coach outfits and stage themes. CONTROLS: Touch: tap Start/Stop, Turn on camera, Record clip; long-press ? for the guide. Keyboard: Space start/pause, Esc back, arrows/Tab move, Enter select, hold H for the controls guide. Controller: A select, B back/pause, Start (Menu/Options/+) start or pause, Select (View/Share/-) settings, hold Select for the controls guide, LB/RB change song, D-pad moves. Steering wheels are ignored. TIPS: prop the phone up, step back so your whole body shows, good lighting.';
 function buddyCtx() { try { const sc = playing ? (paused ? "paused" : "dancing") : !$("#settings").hidden ? "settings" : !$("#result").hidden ? "results" : "home";
-  window.OppsBuddy?.setContext(`Dance Coach (family dance game, camera scores poses on-device). Screen: ${sc}. Mode: ${mode}. Song: ${track.name}. Difficulty: ${localStorage.getItem("dc.diff") || "normal"}. Last score: ${lastResult ? lastResult.pct + "% " + lastResult.stars + " stars" : "none yet"}.`); } catch {} }
+  window.OppsBuddy?.setContext({ facts: BUDDY_FACTS, context: `Screen: ${sc}. Mode: ${mode}. Song: ${track.name}. Difficulty: ${localStorage.getItem("dc.diff") || "normal"}. Last score: ${lastResult ? lastResult.pct + "% " + lastResult.stars + " stars" : "none yet"}.` }); } catch {} }
+// Burst guard: hub may answer 200 {source:'slow'} (or 429 slow_down). Show a friendly line instead of a blank/odd reply.
+if (!isNative) { const of = window.fetch.bind(window); window.fetch = async (u, o) => { const r = await of(u, o); const url = String(u && u.url || u);
+  if (!url.includes("/ai?site=dancecoach")) return r;
+  try { const j = await r.clone().json(); if (j && (j.source === "slow" || j.error === "slow_down" || r.status === 429)) {
+    return new Response(JSON.stringify({ ...j, reply: j.reply && j.source !== "slow" ? j.reply : (j.reply || "Whoa, lots of questions! Give me a few seconds to catch my breath, then ask again. 💃") }), { status: 200, headers: { "Content-Type": "application/json" } }); } } catch {}
+  return r; }; }
 if (!isNative) addEventListener("load", () => setTimeout(() => {
-  const sc = document.createElement("script"); sc.src = "https://oppsgo.com/ai-buddy.js"; sc.defer = true;
+  const sc = document.createElement("script"); sc.src = "https://oppsgo.com/ai-buddy.js?v=2"; sc.defer = true;
   Object.assign(sc.dataset, { site: "dancecoach", game: "dancecoach", mode: "kids", position: "bottom-left" });
   sc.onload = () => { buddyCtx(); setInterval(buddyCtx, 5000); }; document.head.append(sc);
 }, 1500));
