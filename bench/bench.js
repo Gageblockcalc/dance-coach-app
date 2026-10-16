@@ -51,10 +51,10 @@ $("#go").onclick = async () => {
   const only = new URLSearchParams(location.search).get("only"); const list = only ? OPTS.filter(([k]) => only.split(",").includes(k)) : OPTS;
   for (const [key, mk] of list) {
     $("#st").textContent = "Running " + key + "…"; const row = document.createElement("tr"); $("#tb").append(row); const t0 = performance.now(); let eng;
-    try { eng = await mk(); const init = ((performance.now() - t0) / 1000).toFixed(1); const r = await run(eng); eng.close?.();
-      const res = { key, name: eng.name, backend: eng.backend, init: +init, ms: +r.ms.toFixed(1), fps: +r.fps.toFixed(1), found: r.found, n: r.n }; window.dcBenchResults.push(res);
+    try { eng = await Promise.race([mk(), new Promise((_, rej) => setTimeout(() => rej(new Error("init timeout (45 s)")), 45000))]); const init = ((performance.now() - t0) / 1000).toFixed(1); const r = await run(eng); eng.close?.();
+      const res = { key, name: eng.name, backend: eng.backend, init: +init, ms: +r.ms.toFixed(1), fps: +r.fps.toFixed(1), found: r.found, n: r.n }; window.dcBenchResults.push(res); console.log("BENCH " + JSON.stringify(res));
       row.innerHTML = `<td>${res.name}</td><td>${res.backend}</td><td>${init}</td><td>${res.ms}</td><td>${res.fps}</td><td>${res.found}%</td>`;
-    } catch (e) { window.dcBenchResults.push({ key, error: String(e.message || e).slice(0, 80) }); row.innerHTML = `<td>${key}</td><td colspan="5">skipped: ${String(e.message || e).slice(0, 80)}</td>`; }
+    } catch (e) { console.log("BENCH skip " + key + " " + String(e.message || e).slice(0, 80)); window.dcBenchResults.push({ key, error: String(e.message || e).slice(0, 80) }); row.innerHTML = `<td>${key}</td><td colspan="5">skipped: ${String(e.message || e).slice(0, 80)}</td>`; }
   }
   window.dcBenchResults.push({ key: "js-scoring", msPerFrame: +scoringBench() });
   const ok = window.dcBenchResults.filter((r) => r.fps); ok.sort((a, b) => b.fps - a.fps || a.ms - b.ms);
