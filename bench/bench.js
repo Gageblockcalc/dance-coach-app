@@ -43,7 +43,7 @@ function scoringBench() { // plain-JS scoring cost (angles + similarity) with sy
   const lm = Array.from({ length: 33 }, (_, i) => ({ x: Math.random(), y: Math.random(), visibility: 0.9 })), SEGS = [[11,13],[13,15],[12,14],[14,16],[23,25],[25,27],[24,26],[26,28]];
   const t = performance.now(); let acc = 0; for (let k = 0; k < 20000; k++) { for (const [i, j] of SEGS) acc += Math.atan2(lm[j].x - lm[i].x, lm[j].y - lm[i].y); } return ((performance.now() - t) / 20000).toFixed(4);
 }
-const OPTS = [["mp-cpu", () => mp("CPU")], ["mp-gpu", () => mp("GPU")], ["mp-cpu-256", () => mp("CPU", 256)], ["mp-worker-cpu", () => worker("CPU")], ["mp-worker-gpu", () => worker("GPU")], ["tf-wasm", () => tf("wasm")], ["tf-webgl", () => tf("webgl")], ["tf-webgpu", () => tf("webgpu")]];
+const OPTS = [["mp-cpu", () => mp("CPU")], ["mp-gpu", () => mp("GPU")], ["mp-cpu-256", () => mp("CPU", 256)], ["mp-worker-cpu", () => worker("CPU")], ["tf-wasm", () => tf("wasm")], ["tf-webgl", () => tf("webgl")], ["tf-webgpu", () => tf("webgpu")]];
 window.dcBenchResults = [];
 $("#go").onclick = async () => {
   $("#go").disabled = true; $("#tb").innerHTML = "";

@@ -4,7 +4,7 @@ import { initPads, rumble } from "./gamepad.js";
 import { initI18n } from "./i18n.js";
 import { coins } from "./coins.js";
 import { seasonLine } from "./seasons.js";
-import { initShare } from "./share.js";
+import { initShare, hubShare } from "./share.js";
 import { initShop, coachColor } from "./shop.js";
 import { initControls, showControls } from "./controls.js";
 initI18n();
@@ -68,8 +68,13 @@ async function landmarker() {
   const { m, fs } = await loadMP();
   const o = (d) => ({ baseOptions: { modelAssetPath: MODEL, delegate: d }, runningMode: "VIDEO", numPoses: 1 });
   const want = (new URLSearchParams(location.search).get("delegate") || localStorage.getItem("dc.delegate") || "GPU").toUpperCase();
-  if (want !== "CPU") { try { const l = await m.PoseLandmarker.createFromOptions(fs, o("GPU")); window.dcPerf.backend = "MediaPipe GPU"; return l; } catch {} }
-  const l = await m.PoseLandmarker.createFromOptions(fs, o("CPU")); window.dcPerf.backend = "MediaPipe CPU (wasm)"; return l;
+  const timeIt = (l) => { if (!cam.videoWidth) return 0; const t = performance.now(); for (let i = 0; i < 8; i++) { try { l.detectForVideo(inSrc(), performance.now() + i); } catch {} } return (performance.now() - t) / 8; };
+  let gpu = null, gms = Infinity;
+  if (want !== "CPU") { try { gpu = await m.PoseLandmarker.createFromOptions(fs, o("GPU")); gms = timeIt(gpu); } catch { gpu = null; } }
+  if (gpu && (want === "GPU!" || gms < 30)) { window.dcPerf.backend = `MediaPipe GPU (${gms.toFixed(0)} ms probe)`; return gpu; }
+  const cpu = await m.PoseLandmarker.createFromOptions(fs, o("CPU")), cms = timeIt(cpu);
+  if (gpu && gms <= cms) { cpu.close(); window.dcPerf.backend = `MediaPipe GPU (${gms.toFixed(0)} vs CPU ${cms.toFixed(0)} ms)`; return gpu; }
+  gpu?.close(); window.dcPerf.backend = `MediaPipe CPU/wasm (${cms.toFixed(0)}${gpu ? " vs GPU " + gms.toFixed(0) : ""} ms)`; return cpu;
 }
 
 // ---- state ----
@@ -125,6 +130,7 @@ async function resultCard() {
   return new Promise((res) => c.toBlob(res, "image/png"));
 }
 async function share() {
+  if (localStorage.getItem("dc.share") === "1") { const f = lastResult ? await resultCard().then((b) => b && new File([b], "dance-coach-result.png", { type: "image/png" })).catch(() => null) : null; if (await hubShare({ result: lastResult, file: f || undefined })) return; }
   const url = "https://dancecoach.pages.dev/?ref=share", text = lastResult ? `I scored ${lastResult.pct}% on Dance Coach! Can you beat me?` : "Dance Coach: your camera scores your moves, on-device.";
   try { const b = lastResult && (await resultCard()); const f = b && new File([b], "dance-coach-result.png", { type: "image/png" });
     if (f && navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], text, url }); return; }
@@ -179,7 +185,7 @@ function setPaused(on) {
 }
 window.dcPause = setPaused;
 const WORD = (s) => (s > 0.8 ? ["Perfect!", "#FFD23F"] : s > 0.65 ? ["Great!", "#B8FF00"] : s > 0.5 ? ["Good", "#7fd3ff"] : ["Keep going!", "#fff"]);
-const INRES = +(new URLSearchParams(location.search).get("inres") || 0); let inC = null, inG = null;
+const INRES = +(new URLSearchParams(location.search).get("inres") ?? 256) || 0; // measured: 256 px input is ~10-15% faster than full camera frames let inC = null, inG = null;
 function inSrc() { if (!INRES || !cam.videoWidth) return cam; const sc = INRES / Math.max(cam.videoWidth, cam.videoHeight); if (sc >= 1) return cam; inC ??= document.createElement("canvas"); const w = Math.round(cam.videoWidth * sc), h = Math.round(cam.videoHeight * sc); if (inC.width !== w) { inC.width = w; inC.height = h; inG = inC.getContext("2d"); } inG.drawImage(cam, 0, 0, w, h); return inC; }
 const RM = matchMedia("(prefers-reduced-motion: reduce)");
 let quality = localStorage.getItem("dc.quality") || "auto", fpsE = 60, detE = 0, lastF = 0, parts = [];

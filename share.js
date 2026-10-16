@@ -16,7 +16,7 @@ function loadHub() {
 }
 function ui() {
   const b = $("#shareDanceBtn"), g = $("#gallery");
-  if (b) b.hidden = !(on() && clip);
+  if (b) b.hidden = !(on() && clip); const sc = $("#shareClipBtn"); if (sc) sc.hidden = !(on() && clip);
   if (g) g.hidden = !on();
 }
 async function mountGallery() {
@@ -40,13 +40,22 @@ async function doShare() {
     clip = null; ui(); const g = $("#galleryList"); if (g) { g.innerHTML = ""; delete g.dataset.m; mountGallery(); }
   } catch { msg("Couldn't reach the sharing service. Try again later."); }
 }
+const ogFor = (r) => `${HUB}/og?site=${CTX}&title=${encodeURIComponent(r ? `I scored ${r.pct}% on Dance Coach!` : "Dance Coach")}&sub=${encodeURIComponent(r ? "Can you beat me? Free, on-device dance game" : "Your camera scores your moves, on-device")}&score=${encodeURIComponent(r ? r.stars + " stars" : "Free")}`;
+// Grown-up sharing on: use the hub share sheet (all networks, QR, download). Returns false when not available so the caller can use the simple share.
+export async function hubShare({ result, file } = {}) {
+  if (!on()) return false;
+  try { const H = await loadHub(); H.media.setKids(false);
+    const r = await H.share.open({ url: "https://dancecoach.pages.dev/?ref=share", title: result ? `I scored ${result.pct}% on Dance Coach!` : "Dance Coach", text: result ? `${result.stars} stars, ${result.perfect} perfect moments. Can you beat me?` : "Free family-friendly dance game. Your camera scores your moves, on-device.", image: ogFor(result), file });
+    return !!(r && r.ok) || true; } catch { return false; }
+}
 export function initShare() {
-  if (native) { for (const id of ["shareRow", "gallery", "shareDanceBtn"]) { const e = document.getElementById(id); if (e) e.hidden = true; } return; }
+  if (native) { for (const id of ["shareRow", "gallery", "shareDanceBtn", "shareClipBtn"]) { const e = document.getElementById(id); if (e) e.hidden = true; } return; }
   $("#shareRow").hidden = false;
   const t = $("#shareToggle"); t.setAttribute("aria-checked", on() ? "true" : "false");
   t.onclick = () => { const v = !on(); localStorage.setItem("dc.share", v ? "1" : "0"); t.setAttribute("aria-checked", v ? "true" : "false"); try { window.NickHub?.media.setKids(!v); } catch {} ui(); if (v) mountGallery(); };
   addEventListener("dc-clip", (e) => { clip = e.detail; ui(); });
   $("#shareDanceBtn").onclick = doShare;
+  $("#shareClipBtn").onclick = () => clip && hubShare({ file: new File([clip.blob], clip.type.includes("mp4") ? "dance.mp4" : "dance.webm", { type: clip.type.split(";")[0] }) });
   $("#signInBtn").onclick = async () => { try { const H = await loadHub(); await H.signIn(); $("#shareAuth").hidden = true; msg("Signed in! Tap Share my dance again."); } catch { msg("Sign-in was cancelled."); } };
   $("#signUpBtn").onclick = async () => { const h = (prompt("Pick a public nickname (2-24 letters/numbers, no real names):") || "").trim(); if (!h) return; try { const H = await loadHub(); await H.signUp(h); $("#shareAuth").hidden = true; msg("Account created! Tap Share my dance again."); } catch { msg("Couldn't create the account (" + h + ")."); } };
   ui(); if (on()) mountGallery();
