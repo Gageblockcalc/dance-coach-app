@@ -155,6 +155,7 @@ if (!isNative) addEventListener("load", () => setTimeout(() => {
   sc.onload = () => { buddyCtx(); setInterval(buddyCtx, 5000); }; document.head.append(sc);
 }, 1500));
 function stop() {
+  const wasPlaying = playing;
   if (paused) { paused = false; document.body.classList.remove("paused"); ac?.resume(); window.speechSynthesis?.resume(); status("Stopped."); }
   playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
@@ -164,6 +165,7 @@ function stop() {
     $("#shareBtn").onclick = () => share();
     coins.onSongEnd({ stars, daily: mode === "daily", perfect, streak: streak() });
     if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); } }
+  else if (wasPlaying) status(stream ? "Not enough moves seen to score — step back so your whole body shows, then try again." : "Turn on the camera to get a score.");
   if (rec && rec.state === "recording") rec.stop();
 }
 $("#startBtn").onclick = () => (playing ? stop() : start());
@@ -194,7 +196,7 @@ if (new URLSearchParams(location.search).get("bench") === "1") addEventListener(
 window.dcPerf = { get fps() { return fpsE; }, get det() { return detE; }, get q() { return quality; }, frames: 0 };
 window.dcSetQuality = (q) => { quality = q; localStorage.setItem("dc.quality", q); };
 const detGap = () => quality === "low" ? Math.max(110, detE * 4) : quality === "high" ? Math.max(45, detE * 1.5) : (fpsE < 40 || detE > 35 ? Math.max(110, detE * 3) : 66); // keep the UI responsive on slow devices
-const partN = () => RM.matches ? 0 : quality === "low" ? 0 : quality === "high" ? 26 : (fpsE < 40 ? 6 : 14);
+const partN = () => RM.matches || document.documentElement.classList.contains("reduce") || document.documentElement.classList.contains("noparticles") ? 0 : quality === "low" ? 0 : quality === "high" ? 26 : (fpsE < 40 ? 6 : 14);
 function burst(x, y) { for (let i = 0, k = partN(); i < k; i++) { const a = Math.random() * 6.283, v = 2 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 3, life: 1, c: ["#B8FF00", "#FFD23F", "#ff4fd8", "#7fd3ff"][i % 4] }); } }
 function drawParts(g) { if (!parts.length) return; for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; g.fillRect(p.x, p.y, 8, 8); } g.globalAlpha = 1; parts = parts.filter((p) => p.life > 0); }
 let lastIdle = 0, moveTxt = "";
@@ -324,3 +326,6 @@ setInterval(() => {
     else { goodRun = Math.max(0, goodRun - 1); badRun = Math.max(0, badRun - 1); }
   }
 }, 500);
+
+// Auto-pause when the app goes to the background (saves battery, keeps the score fair)
+document.addEventListener("visibilitychange", () => { if (document.hidden && playing && !paused) setPaused(true); });
