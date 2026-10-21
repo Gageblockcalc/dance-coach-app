@@ -7,8 +7,15 @@ const on = () => !native && localStorage.getItem("dc.share") === "1";
 let hubP = null, clip = null;
 const $ = (s) => document.querySelector(s);
 function loadHub() {
+  // Reuse the static embed tag in the page head when it already loaded (or is still loading); only inject our own as a fallback.
+  if (window.NickHub) { try { window.NickHub.media.setKids(!on()); } catch {} return Promise.resolve(window.NickHub); }
+  const tag = document.querySelector('script[src*="/embed.js"][data-site="dancecoach"]');
+  if (tag && !hubP && document.readyState !== "complete") return (hubP = new Promise((res, rej) => {
+    tag.addEventListener("load", () => { if (window.NickHub) { try { window.NickHub.media.setKids(!on()); } catch {} res(window.NickHub); } else { hubP = null; rej(new Error("hub")); } });
+    tag.addEventListener("error", () => { hubP = null; rej(new Error("hub")); });
+  }));
   return (hubP ??= new Promise((res, rej) => {
-    const sc = document.createElement("script"); sc.src = HUB + "/embed.js"; sc.defer = true;
+    const sc = document.createElement("script"); sc.src = "https://nick-hub-static.pages.dev/embed.js"; sc.defer = true;
     Object.assign(sc.dataset, { site: CTX, chat: "off", feedback: "off", media: on() ? "on" : "off" });
     sc.onload = () => { try { window.NickHub.hide(); window.NickHub.media.setKids(!on()); } catch {} res(window.NickHub); };
     sc.onerror = () => { hubP = null; rej(new Error("hub")); }; document.head.append(sc);
