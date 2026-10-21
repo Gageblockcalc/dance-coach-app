@@ -5,7 +5,7 @@ Rule: before you can apply for production, at least **12 testers** must be **opt
 1. Finish identity verification (pending).
 2. Create app: name "Dance Coach: Move & Score", default language English (US), App, Free. Accept declarations.
 3. Setup > App integrity: keep **Play App Signing** on (Google holds the app signing key; your upload key is /home/box/secure/dancecoach-upload.jks — back it up).
-4. App content: privacy policy URL https://dancecoach.pages.dev/privacy.html; ads = No; app access = all features available without login; content rating (content-rating.md); target audience; data safety (data-safety.md); government/financial/health declarations = No (Health: it's general fitness, no health data).
+4. App content: privacy policy URL https://dancecoach.pages.dev/privacy; ads = No; app access = all features available without login; content rating (content-rating.md); target audience; data safety (data-safety.md); government/financial/health declarations = No (Health: it's general fitness, no health data).
 5. Store listing: paste listing.md; upload icon-512.png, feature-graphic-1024x500.png, 2–8 phone screenshots.
 6. Testing > Closed testing > Create track > Testers: create an email list (Google account emails of testers) or use a Google Group.
 7. Create release > upload /workspace/play/dance-coach-release.aab > notes "First test build" > review > roll out to closed testing.

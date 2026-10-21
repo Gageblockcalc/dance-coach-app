@@ -29,5 +29,5 @@ Questions or ideas? Email tekjeep@gmail.com.
 
 **Category:** Health & Fitness (alt: Music & Audio)  
 **Contact email:** tekjeep@gmail.com  
-**Privacy policy:** https://dancecoach.pages.dev/privacy.html  
+**Privacy policy:** https://dancecoach.pages.dev/privacy  
 **Website:** https://dancecoach.pages.dev
