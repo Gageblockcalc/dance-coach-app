@@ -229,11 +229,14 @@ const partN = () => RM.matches || document.documentElement.classList.contains("r
 function burst(x, y) { for (let i = 0, k = partN(); i < k; i++) { const a = Math.random() * 6.283, v = 2 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 3, life: 1, c: ["#B8FF00", "#FFD23F", "#ff4fd8", "#7fd3ff"][i % 4] }); } }
 function drawParts(g) { if (!parts.length) return; for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; g.fillRect(p.x, p.y, 8, 8); } g.globalAlpha = 1; parts = parts.filter((p) => p.life > 0); }
 let lastIdle = 0, moveTxt = "";
+const SONG_BEATS = 96; const songLen = (bpm) => (SONG_BEATS * 60) / bpm; // every song has an ending (~48-62 s) so runs have a clear goal
 function frame(now) {
   requestAnimationFrame(frame);
   if (!playing && !stream && !refVideo && !parts.length) { if (now - lastIdle < 120) return; lastIdle = now; } // idle: ~8 fps, saves battery + main thread
   window.dcPerf.frames++; if (lastF) fpsE = fpsE * 0.95 + (1000 / Math.max(1, now - lastF)) * 0.05; lastF = now;
   const t = playing ? (refVideo ? refVideo.currentTime : ((paused ? pausedAt : now) - t0) / 1000) : 0, bpm = track.bpm;
+  if (playing && !paused && !refVideo && t >= songLen(bpm)) { stop(); return; }
+  if (playing && !paused && refVideo && refVideo.ended) { stop(); return; }
   const c = coachAt(t, bpm); let ref = c.pose, refV;
   if (refVideo && refLM && refVideo.readyState >= 2) { const k = Math.round(refVideo.currentTime * 10); let r = refCache.get(k); if (!r) { try { r = poseAngles(refLM.detectForVideo(refVideo, now + 0.5).landmarks?.[0]); } catch {} if (r) refCache.set(k, r); } if (r) { ref = r.a; refV = r.v; } }
   cg.fillStyle = "#1b1030"; cg.fillRect(0, 0, 300, 300); drawCoach(cg, 300, 300, ref, coachColor(), true);
@@ -251,7 +254,7 @@ function frame(now) {
   if (playing && !paused && !refVideo && t < 0) { const left = Math.ceil((-t * bpm) / 60); const ph = noFx() ? 0 : ((-t * bpm) / 60) % 1; g.save(); g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(W, H) * (0.28 + ph * 0.08))}px system-ui`; g.fillStyle = left <= 1 ? "#B8FF00" : "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 16; g.fillText(left > 3 ? "Ready?" : String(left), W / 2, H / 2 + Math.min(W, H) * 0.1); g.font = "800 28px system-ui"; g.fillStyle = "#fff"; g.fillText("Get in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); g.restore(); }
   if (playing && !paused && lastPose && stream && (refVideo || t >= 0)) {
     const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
-    if (u && !refVideo) { const lag = 30 / bpm; coachAdd(u, ref, refV, t, routine.length * 2 * 60 / bpm, coachAt(t - lag, bpm).pose, coachAt(t + lag, bpm).pose); }
+    if (u && !refVideo) { const lag = 30 / bpm; coachAdd(u, ref, refV, t, songLen(bpm), coachAt(t - lag, bpm).pose, coachAt(t + lag, bpm).pose); }
     if (s != null && !refVideo) { const bI = Math.floor((t * bpm) / 60); if (bI !== beatI) { if (beatI >= 0 && beatN2) { const av = beatS / beatN2, j = av > 0.8 ? "Perfect" : av > 0.65 ? "Great" : av > 0.5 ? "Good" : "Miss"; judged[j]++; combo = j === "Miss" ? 0 : combo + 1; maxCombo = Math.max(maxCombo, combo); hit = { j, at: now, combo }; hitSound(j); } beatI = bI; beatS = beatN2 = 0; } beatS += s; beatN2++; }
     if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
   }
@@ -260,6 +263,7 @@ function frame(now) {
   if (playing && !paused && hit && now - hit.at < 700) { const k = (now - hit.at) / 700, col = { Perfect: "#FFD23F", Great: "#B8FF00", Good: "#7fd3ff", Miss: "#ff8a8a" }[hit.j]; g.save(); g.textAlign = "center"; g.globalAlpha = 1 - k * k; const sc = noFx() ? 1 : 1 + 0.25 * Math.max(0, 1 - k * 4); g.translate(W / 2, 92); g.scale(sc, sc); g.font = "900 38px system-ui"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(hit.j === "Miss" ? "Miss" : hit.j + "!", 0, 0); if (hit.combo >= 3) { g.font = "800 24px system-ui"; g.fillStyle = "#fff"; g.fillText(`${hit.combo} combo`, 0, 32); } g.restore(); }
   if (playing && paused) { g.font = "900 56px system-ui"; g.textAlign = "center"; g.fillStyle = "#fff"; g.fillText("⏸ Paused", W / 2, H / 2); }
   if (playing) { const [w, col] = WORD(smooth ?? 0); g.font = "900 40px system-ui"; g.textAlign = "center"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(stream ? w : "Turn on camera to score", W / 2, H - 70); g.shadowBlur = 0;
+    if (!refVideo && t > 0) { const pr = Math.min(1, t / songLen(bpm)), gr = g.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, "#ff4fd8"); gr.addColorStop(1, "#7fd3ff"); g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(0, 0, W, 6); g.fillStyle = gr; g.fillRect(0, 0, W * pr, 6); const left = Math.max(0, Math.ceil(songLen(bpm) - t)); g.font = "700 18px system-ui"; g.textAlign = "right"; g.fillStyle = "#fff"; g.fillText(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`, W - 180, 32); g.textAlign = "center"; }
     g.fillStyle = "rgba(255,255,255,.25)"; g.fillRect(20, H - 40, W - 40, 16); g.fillStyle = col; g.fillRect(20, H - 40, (W - 40) * (smooth ?? 0), 16);
     g.font = "700 20px system-ui"; g.textAlign = "left"; g.fillStyle = "#fff"; g.fillText(`Dance Coach · ${n > 0 ? Math.round((sum / n) * 100) : 0}%`, 16, 32); g.font = "600 16px system-ui"; g.fillStyle = "rgba(255,255,255,.7)"; g.fillText("dancecoach.pages.dev", 16, 56); }
 }
