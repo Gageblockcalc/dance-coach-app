@@ -16,6 +16,7 @@ for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VER
 import { initTV, isTV, initTips, showTips, ghostStart, ghostRecord, ghostDraw, finishRun, boardHTML } from "./features.js";
 import { coachReset, coachAdd, coachReport, coachHTML } from "./coach.js";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
+import { coach3dLoad, coach3dReady, coach3dRender, applyLook } from "./coach3d.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
 const MODEL = new URL("./vendor/pose_landmarker_lite.task", location.href).href;
@@ -222,7 +223,7 @@ const RM = matchMedia("(prefers-reduced-motion: reduce)");
 let quality = localStorage.getItem("dc.quality") || "auto", fpsE = 60, detE = 0, lastF = 0, parts = [];
 if (new URLSearchParams(location.search).get("bench") === "1") addEventListener("load", () => { const o = document.createElement("div"); o.id = "benchHud"; o.style.cssText = "position:fixed;top:calc(8px + var(--st));inset-inline-start:calc(8px + var(--sl));z-index:90;background:rgba(0,0,0,.8);color:#B8FF00;font:12px/1.3 monospace;padding:6px 8px;border-radius:8px;pointer-events:auto"; document.body.append(o);
   setInterval(() => { const p = window.dcPerf; o.innerHTML = `backend: ${p.backend || "(start camera)"}<br>inference: ${p.det.toFixed(1)} ms · score: ${(p.score || 0).toFixed(3)} ms<br>FPS: ${p.fps.toFixed(0)} · quality: ${p.q}<br><a href="bench.html" style="color:#fff">▶ full comparison</a>`; }, 500); });
-window.dcPerf = { get fps() { return fpsE; }, get det() { return detE; }, get q() { return quality; }, frames: 0 };
+window.dcPerf = { get fps() { return fpsE; }, get c3() { return want3d() && coach3dReady(); }, get det() { return detE; }, get q() { return quality; }, frames: 0 };
 window.dcSetQuality = (q) => { quality = q; localStorage.setItem("dc.quality", q); };
 const detGap = () => quality === "low" ? Math.max(110, detE * 4) : quality === "high" ? Math.max(45, detE * 1.5) : (fpsE < 40 || detE > 35 ? Math.max(110, detE * 3) : 66); // keep the UI responsive on slow devices
 const partN = () => RM.matches || document.documentElement.classList.contains("reduce") || document.documentElement.classList.contains("noparticles") ? 0 : quality === "low" ? 0 : quality === "high" ? 26 : (fpsE < 40 ? 6 : 14);
@@ -230,16 +231,24 @@ function burst(x, y) { for (let i = 0, k = partN(); i < k; i++) { const a = Math
 function drawParts(g) { if (!parts.length) return; for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; g.fillRect(p.x, p.y, 8, 8); } g.globalAlpha = 1; parts = parts.filter((p) => p.life > 0); }
 let lastIdle = 0, moveTxt = "";
 const SONG_BEATS = 96; const songLen = (bpm) => (SONG_BEATS * 60) / bpm; // every song has an ending (~48-62 s) so runs have a clear goal
+let victoryUntil = 0;
+const want3d = () => S.coach3d !== false && quality !== "low" && !((navigator.deviceMemory || 8) < 3) && !((navigator.hardwareConcurrency || 8) <= 2);
+const maybe3d = () => { if (want3d()) coach3dLoad(); };
+addEventListener("load", () => setTimeout(() => (window.requestIdleCallback || setTimeout)(maybe3d), 2500));
+addEventListener("dc-settings", (e) => { if (e.detail === "coach3d" || e.detail === "look") { maybe3d(); applyLook(); } });
 function frame(now) {
   requestAnimationFrame(frame);
-  if (!playing && !stream && !refVideo && !parts.length) { if (now - lastIdle < 120) return; lastIdle = now; } // idle: ~8 fps, saves battery + main thread
+  if (!playing && !stream && !refVideo && !parts.length && now > victoryUntil) { if (now - lastIdle < 120) return; lastIdle = now; } // idle: ~8 fps, saves battery + main thread
   window.dcPerf.frames++; if (lastF) fpsE = fpsE * 0.95 + (1000 / Math.max(1, now - lastF)) * 0.05; lastF = now;
   const t = playing ? (refVideo ? refVideo.currentTime : ((paused ? pausedAt : now) - t0) / 1000) : 0, bpm = track.bpm;
   if (playing && !paused && !refVideo && t >= songLen(bpm)) { stop(); return; }
   if (playing && !paused && refVideo && refVideo.ended) { stop(); return; }
   const c = coachAt(t, bpm); let ref = c.pose, refV;
   if (refVideo && refLM && refVideo.readyState >= 2) { const k = Math.round(refVideo.currentTime * 10); let r = refCache.get(k); if (!r) { try { r = poseAngles(refLM.detectForVideo(refVideo, now + 0.5).landmarks?.[0]); } catch {} if (r) refCache.set(k, r); } if (r) { ref = r.a; refV = r.v; } }
-  cg.fillStyle = "#1b1030"; cg.fillRect(0, 0, 300, 300); drawCoach(cg, 300, 300, ref, coachColor(), true);
+  const still = RM.matches || document.documentElement.classList.contains("reduce"), vic = !playing && now < victoryUntil;
+  if (vic) { const w = still ? 0 : Math.sin(now / 160); ref = [165 + w * 15, 200 + w * 30, -165 + w * 15, -200 + w * 30, 12, 0, -12, 0]; }
+  const c3 = want3d() && coach3dReady() ? coach3dRender(ref, playing ? t * (bpm / 60) : now / 600, playing && !paused ? fpsE : 60, vic ? "victory" : "dance", still) : null;
+  cg.fillStyle = "#1b1030"; cg.fillRect(0, 0, 300, 300); if (c3) cg.drawImage(c3, 0, 0, 300, 300); else drawCoach(cg, 300, 300, ref, coachColor(), true);
   { const mt = refVideo ? "Following your video" : `${MOVES[c.idx].name} — ${MOVES[c.idx].tip} · next: ${MOVES[c.next].name}`; if (mt !== moveTxt) { moveTxt = mt; $("#move").textContent = mt; } }
   const W = stage.width, H = stage.height;
   g.save(); g.translate(W, 0); g.scale(-1, 1);
@@ -250,7 +259,7 @@ function frame(now) {
   if (lastPose && stream) { const glow = !noFx() && quality !== "low" && !document.documentElement.classList.contains("noparticles"); g.lineCap = "round"; g.lineJoin = "round"; g.beginPath(); for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); }
     if (glow) { g.strokeStyle = "rgba(255,79,216,.28)"; g.lineWidth = 18; g.stroke(); g.strokeStyle = "rgba(127,211,255,.35)"; g.lineWidth = 10; g.stroke(); } g.strokeStyle = glow ? "#ffd6f5" : "#ff4fd8"; g.lineWidth = glow ? 4 : 6; g.stroke(); }
   g.restore();
-  g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, coachColor(), true); g.restore();
+  g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); if (c3) g.drawImage(c3, 0, 0, 160, 160); else drawCoach(g, 160, 160, ref, coachColor(), true); g.restore();
   if (playing && !paused && !refVideo && t < 0) { const left = Math.ceil((-t * bpm) / 60); const ph = noFx() ? 0 : ((-t * bpm) / 60) % 1; g.save(); g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(W, H) * (0.28 + ph * 0.08))}px system-ui`; g.fillStyle = left <= 1 ? "#B8FF00" : "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 16; g.fillText(left > 3 ? "Ready?" : String(left), W / 2, H / 2 + Math.min(W, H) * 0.1); g.font = "800 28px system-ui"; g.fillStyle = "#fff"; g.fillText("Get in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); g.restore(); }
   if (playing && !paused && lastPose && stream && (refVideo || t >= 0)) {
     const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
@@ -359,7 +368,7 @@ let wasPlaying = false, goodRun = 0, badRun = 0;
 setInterval(() => {
   if (paused) return;
   if (playing && !wasPlaying) { try { window.OppsBuddy?.close(); } catch {} goodRun = badRun = 0; say("start", true); sfx("start", 0.6); haptic("medium"); }
-  if (!playing && wasPlaying && n > 20) { say("end", true); sfx("cheer", 0.7); setTimeout(() => sfx("end", 0.6), 300); haptic("success"); }
+  if (!playing && wasPlaying && n > 20) { victoryUntil = performance.now() + 6000; say("end", true); sfx("cheer", 0.7); setTimeout(() => sfx("end", 0.6), 300); haptic("success"); }
   wasPlaying = playing;
   if (playing && stream && smooth != null) {
     if (smooth > 0.7) { goodRun++; badRun = 0; if (goodRun === 6) { if (!(rec && rec.state === "recording")) toastMsg("🔥 Clip-worthy streak! Tap ⏺ Record clip next time."); say("streak"); sfx("perfect", 0.6); haptic("medium"); if (!RM.matches && quality !== "low") stage.animate([{ transform: "translate(0,0)" }, { transform: "translate(-5px,2px)" }, { transform: "translate(4px,-2px)" }, { transform: "translate(0,0)" }], { duration: 260 }); } }
