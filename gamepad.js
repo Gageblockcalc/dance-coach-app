@@ -112,6 +112,7 @@ function focusables() {
     .filter((el) => !el.disabled && !el.hidden && el.offsetParent !== null && el.getClientRects().length && !el.closest("[hidden]"));
 }
 export function moveFocus(dx, dy) {
+  const ae = document.activeElement; if (dx && ae?.type === "range") { dx > 0 ? ae.stepUp() : ae.stepDown(); ae.dispatchEvent(new Event("input", { bubbles: true })); return; }
   const els = focusables(); if (!els.length) return;
   const cur = document.activeElement; if (!els.includes(cur)) { els[0].focus(); return; }
   const r = cur.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2; let best = null, bs = Infinity;

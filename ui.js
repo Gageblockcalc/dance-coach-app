@@ -5,7 +5,7 @@ const P = (native && Cap.Plugins) || {};
 export const isNative = native;
 
 // ---- settings (localStorage only, never leaves the device) ----
-const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true, ghost: true, big: /\b(TV|AFT[A-Z0-9]*|BRAVIA|GoogleTV|SMART-TV|Tizen|Web0S|CrKey)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).get("tv") === "1" };
+const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true, ghost: true, music: true, musicVol: 70, big: /\b(TV|AFT[A-Z0-9]*|BRAVIA|GoogleTV|SMART-TV|Tizen|Web0S|CrKey)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).get("tv") === "1" };
 export const S = Object.assign({}, DEF, JSON.parse(localStorage.getItem("dc.settings") || "{}"));
 if (localStorage.getItem("dc.voice") === "1") S.voice = true; // migrate old toggle
 const save = () => localStorage.setItem("dc.settings", JSON.stringify(S));
@@ -63,10 +63,10 @@ function onboarding() {
 }
 
 function settings() {
-  const rows = [["sounds", "Sound effects", "Clicks, cheers and stingers"], ["voice", "Coach voice", "Coach Disco Dan reads his jokes out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"], ["ghost", "Ghost replay", "Faint outline of your best run on each song"], ["big", "Large screen mode", "Bigger buttons and text for TVs — arrow keys or remote to move"]];
+  const rows = [["music", "Music", "Original beats for every song"], ["sounds", "Sound effects", "Clicks, cheers, hit sounds and stingers"], ["voice", "Coach voice", "Coach Disco Dan reads his jokes out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"], ["ghost", "Ghost replay", "Faint outline of your best run on each song"], ["big", "Large screen mode", "Bigger buttons and text for TVs — arrow keys or remote to move"]];
   if (native) rows.push(["reminder", "Daily reminder", "A gentle nudge for the daily challenge"]);
   const box = $("#settingsList");
-  box.innerHTML = rows.map(([k, t, d]) => `<button class="switch" role="switch" aria-checked="${!!S[k]}" data-k="${k}"><span><b>${t}</b><small>${d}</small></span><i aria-hidden="true"></i></button>`).join("")
+  box.innerHTML = `<label class="timeRow volRow"><span>🎵 Music volume</span><input type="range" id="musicVol" min="0" max="100" step="5" value="${S.musicVol ?? 70}" aria-label="Music volume"><output id="musicVolOut">${S.musicVol ?? 70}%</output></label>` + rows.map(([k, t, d]) => `<button class="switch" role="switch" aria-checked="${!!S[k]}" data-k="${k}"><span><b>${t}</b><small>${d}</small></span><i aria-hidden="true"></i></button>`).join("")
     + (native ? `<label class="timeRow">Reminder time <input type="time" id="remindAt" value="${S.remindAt}"></label>` : `<p class="note">Daily reminders are available in the Android app.</p>`);
   box.onclick = async (e) => {
     const b = e.target.closest(".switch"); if (!b) return; const k = b.dataset.k; S[k] = !S[k];
@@ -75,6 +75,7 @@ function settings() {
     if (k === "reduced" || k === "particles") applyMotion(); if (k === "big") document.documentElement.classList.toggle("big", !!S.big);
     b.setAttribute("aria-checked", !!S[k]); save(); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: k }));
   };
+  const mv = $("#musicVol"); if (mv) mv.oninput = () => { S.musicVol = +mv.value; $("#musicVolOut").textContent = mv.value + "%"; if (S.music === false && +mv.value > 0) { S.music = true; box.querySelector('[data-k="music"]')?.setAttribute("aria-checked", "true"); } save(); window.dcApplyMusicVol?.(); };
   const t = $("#remindAt"); if (t) t.onchange = () => { S.remindAt = t.value; save(); if (S.reminder) setReminder(true); };
   $("#settingsBtn").onclick = () => openSheet("#settings");
   document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => closeSheet("#" + b.closest(".sheet").id)));

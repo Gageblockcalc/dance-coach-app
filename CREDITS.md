@@ -1,5 +1,6 @@
 # Credits
-- Music: "Neon Pulse", "Bubble Bounce", "Sunset Groove" are original patterns synthesized live in the app (Web Audio API). No samples. Released CC0.
+- Music: "Neon Pulse", "Bubble Bounce", "Sunset Groove", "Glow Up" are original patterns synthesized live in the app (Web Audio API). No samples. Released CC0.
+- Hit sounds, count-in cue and drums are synthesized live too (original, CC0).
 - Pose tracking: MediaPipe Tasks Vision 0.10.14 (Apache-2.0), bundled in `/vendor` (from npm @mediapipe/tasks-vision); Pose Landmarker Lite model (Apache-2.0) from Google MediaPipe models.
 - Coach routine and scoring adapted from OPPS Dance Coach (Nick Duncan, original moves).
 

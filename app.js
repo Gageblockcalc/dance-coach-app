@@ -22,38 +22,56 @@ const MODEL = new URL("./vendor/pose_landmarker_lite.task", location.href).href;
 const $ = (s) => document.querySelector(s);
 
 // ---- original synthesized tracks (made in-browser with Web Audio; CC0, see CREDITS.md) ----
-const TRACKS = [
-  { id: "pulse", name: "Neon Pulse", bpm: 100, bass: [0, 0, 7, 5], root: 45, wave: "sawtooth" },
-  { id: "bounce", name: "Bubble Bounce", bpm: 112, bass: [0, 3, 5, 7], root: 48, wave: "square" },
-  { id: "groove", name: "Sunset Groove", bpm: 92, bass: [0, 5, 3, 10], root: 43, wave: "triangle" },
+const TRACKS = [ // original patterns synthesized live (Web Audio), CC0 — no samples, no copyrighted songs
+  { id: "pulse", name: "Neon Pulse", bpm: 100, bass: [0, 0, 7, 5], root: 45, wave: "sawtooth", arp: [0, 7, 12, 7, 15, 12, 7, 3] },
+  { id: "bounce", name: "Bubble Bounce", bpm: 112, bass: [0, 3, 5, 7], root: 48, wave: "square", arp: [0, 12, 7, 12, 3, 12, 5, 12] },
+  { id: "groove", name: "Sunset Groove", bpm: 92, bass: [0, 5, 3, 10], root: 43, wave: "triangle", arp: [0, 3, 7, 10, 12, 10, 7, 3] },
+  { id: "glow", name: "Glow Up", bpm: 120, bass: [0, 8, 3, 10], root: 41, wave: "sawtooth", arp: [12, 7, 3, 7, 15, 7, 10, 7] },
 ];
-let ac = null, master = null, recDest = null, seqTimer = null, nextBeatT = 0, beatN = 0, track = TRACKS[0];
+let ac = null, master = null, musicBus = null, padBus = null, recDest = null, seqTimer = null, nextBeatT = 0, beatN = 0, track = TRACKS[0], noiseBuf = null;
 const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+const musicLevel = () => (S.music === false ? 0 : Math.max(0, Math.min(100, S.musicVol ?? 70)) / 100);
+function applyMusicVol() { if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.05); }
+window.addEventListener("dc-settings", applyMusicVol); window.dcApplyMusicVol = applyMusicVol;
 function audio() {
-  if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination); recDest = ac.createMediaStreamDestination(); master.connect(recDest); }
+  if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.5;
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; master.connect(comp).connect(ac.destination);
+    recDest = ac.createMediaStreamDestination(); comp.connect(recDest);
+    musicBus = ac.createGain(); musicBus.gain.value = musicLevel(); musicBus.connect(master); padBus = ac.createGain(); padBus.connect(musicBus);
+    noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.25, ac.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
   return ac;
 }
 setAudio(() => (audio(), { ac, out: master }));
-function blip(t, f, dur, type, vol) { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.02); }
-function kick(t) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.15); g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2); o.connect(g).connect(master); o.start(t); o.stop(t + 0.22); }
-function hat(t, vol) { const b = ac.createBuffer(1, ac.sampleRate * 0.05, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b; f.type = "highpass"; f.frequency.value = 7000; g.gain.value = vol; s.connect(f).connect(g).connect(master); s.start(t); }
+function blip(t, f, dur, type, vol, out = musicBus, cut = 0) { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.001, t + dur); let n = o; if (cut) { const fl = ac.createBiquadFilter(); fl.type = "lowpass"; fl.frequency.setValueAtTime(cut, t); fl.Q.value = 6; o.connect(fl); n = fl; } n.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.02); }
+function kick(t, v = 0.9) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.24); o.connect(g).connect(musicBus); o.start(t); o.stop(t + 0.26);
+  padBus.gain.cancelScheduledValues(t); padBus.gain.setValueAtTime(0.25, t); padBus.gain.linearRampToValueAtTime(1, t + 0.22); } // sidechain pump
+function noise(t, dur, type, freq, vol, out = musicBus) { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noiseBuf; f.type = type; f.frequency.value = freq; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + dur + 0.02); }
+const hat = (t, vol) => noise(t, 0.05, "highpass", 7500, vol);
+const clap = (t) => { for (const k of [0, 0.012, 0.024]) noise(t + k, 0.16, "bandpass", 1500, 0.32); };
 function schedule() {
-  const spb = 60 / track.bpm;
+  const spb = 60 / track.bpm, arp = track.arp || [0, 7, 12, 7];
   while (nextBeatT < ac.currentTime + 0.2) {
-    const t = nextBeatT, bar = Math.floor(beatN / 4) % 4, b = beatN % 4;
-    kick(t); hat(t + spb / 2, 0.25); if (b % 2) hat(t, 0.15);
-    const n = track.root + track.bass[bar]; blip(t, hz(n), spb * 0.45, track.wave, 0.18); blip(t + spb / 2, hz(n + 12), spb * 0.3, track.wave, 0.08);
-    if (b === 0) [0, 4, 7].forEach((iv) => blip(t, hz(n + 24 + iv), spb * 1.8, "sine", 0.05));
+    const t = nextBeatT, b = beatN % 4;
+    if (beatN < 4) { kick(t, 0.6); hat(t + spb / 2, 0.18); blip(t, hz(b === 3 ? 88 : 81), 0.12, "square", 0.12, master); if (b === 3) noise(t, spb, "highpass", 2000, 0.12); nextBeatT += spb; beatN++; continue; } // count-in cue
+    const m = beatN - 4, bar = Math.floor(m / 4) % 4, sect = Math.floor(m / 32) % 2; // 8-bar sections: verse / drop
+    kick(t); hat(t + spb / 2, 0.22); if (sect) { hat(t + spb / 4, 0.1); hat(t + (3 * spb) / 4, 0.1); } if (b === 1 || b === 3) clap(t);
+    const n = track.root + track.bass[bar], sweep = 500 + 2200 * ((m % 16) / 16);
+    blip(t, hz(n), spb * 0.45, track.wave, 0.2, musicBus, sweep); blip(t + spb / 2, hz(n + 12), spb * 0.3, track.wave, 0.09, musicBus, sweep);
+    if (b === 0) [0, 3, 7, 10].forEach((iv) => blip(t, hz(n + 24 + iv), spb * 3.6, "sawtooth", 0.022, padBus, 1800));
+    if (sect) for (let k = 0; k < 2; k++) blip(t + (k * spb) / 2, hz(n + 36 + arp[(m * 2 + k) % arp.length]), spb * 0.35, "triangle", 0.06);
     nextBeatT += spb; beatN++;
   }
 }
+function hitSound(j) { if (!ac || S.sounds === false) return; const t = ac.currentTime + 0.01, base = track.root + 48;
+  if (j === "Perfect") { blip(t, hz(base + 12), 0.25, "triangle", 0.12, master); blip(t + 0.06, hz(base + 19), 0.3, "triangle", 0.1, master); noise(t, 0.12, "highpass", 9000, 0.06, master); }
+  else if (j === "Great") blip(t, hz(base + 12), 0.18, "triangle", 0.08, master); }
 function musicStart() { audio(); ac.resume(); beatN = 0; nextBeatT = ac.currentTime + 0.1; clearInterval(seqTimer); seqTimer = setInterval(schedule, 50); schedule(); return nextBeatT; }
 function musicStop() { clearInterval(seqTimer); seqTimer = null; }
 
 // ---- daily challenge: date-seeded routine + track ----
 const today = new Date().toISOString().slice(0, 10);
 function rng(seed) { let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; }
-function dailyRoutine() { const r = rng(today); const order = MOVES.map((_, i) => i).slice(1).sort(() => r() - 0.5).slice(0, 8); return { routine: [0, ...order], track: TRACKS[Math.floor(r() * TRACKS.length)] }; }
+function dailyRoutine() { const r = rng(today); const order = MOVES.map((_, i) => i).slice(1).sort(() => r() - 0.5).slice(0, 8); return { routine: [0, ...order], track: TRACKS[Math.floor(r() * 3)] }; }
 const FULL = MOVES.map((_, i) => i);
 let routine = FULL, mode = "free";
 function coachAt(t, bpm) {
@@ -115,7 +133,7 @@ function start() {
   paused = false; document.body.classList.remove("paused");
   sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; playing = true; $("#result").hidden = true; ghostStart(runKey()); coachReset();
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000 + (4 * 60000) / track.bpm; /* 4-beat count-in */ }
-  $("#startBtn").textContent = "■ Stop"; document.body.classList.add("dancing");
+  $("#startBtn").textContent = "■ Stop"; document.body.style.setProperty("--spb", (60 / track.bpm).toFixed(3) + "s"); document.body.classList.add("dancing");
 }
 let lastResult = null, lastBoard = null;
 let combo = 0, maxCombo = 0, judged = {}, beatI = -1, beatS = 0, beatN2 = 0, hit = null; // per-beat judgement + combo
@@ -226,17 +244,19 @@ function frame(now) {
   if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(inSrc(), now).landmarks?.[0] || null; } catch {} detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
   if (playing) ghostDraw(g, t, W, H);
   if (playing && !paused && lastPose && stream) ghostRecord(t, lastPose);
-  if (lastPose && stream) { g.strokeStyle = "#ff4fd8"; g.lineWidth = 6; g.lineCap = "round"; for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.beginPath(); g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); g.stroke(); } }
+  if (lastPose && stream) { const glow = !noFx() && quality !== "low" && !document.documentElement.classList.contains("noparticles"); g.lineCap = "round"; g.lineJoin = "round"; g.beginPath(); for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); }
+    if (glow) { g.strokeStyle = "rgba(255,79,216,.28)"; g.lineWidth = 18; g.stroke(); g.strokeStyle = "rgba(127,211,255,.35)"; g.lineWidth = 10; g.stroke(); } g.strokeStyle = glow ? "#ffd6f5" : "#ff4fd8"; g.lineWidth = glow ? 4 : 6; g.stroke(); }
   g.restore();
   g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, coachColor(), true); g.restore();
   if (playing && !paused && !refVideo && t < 0) { const left = Math.ceil((-t * bpm) / 60); const ph = noFx() ? 0 : ((-t * bpm) / 60) % 1; g.save(); g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(W, H) * (0.28 + ph * 0.08))}px system-ui`; g.fillStyle = left <= 1 ? "#B8FF00" : "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 16; g.fillText(left > 3 ? "Ready?" : String(left), W / 2, H / 2 + Math.min(W, H) * 0.1); g.font = "800 28px system-ui"; g.fillStyle = "#fff"; g.fillText("Get in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); g.restore(); }
   if (playing && !paused && lastPose && stream && (refVideo || t >= 0)) {
     const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
     if (u && !refVideo) { const lag = 30 / bpm; coachAdd(u, ref, refV, t, routine.length * 2 * 60 / bpm, coachAt(t - lag, bpm).pose, coachAt(t + lag, bpm).pose); }
-    if (s != null && !refVideo) { const bI = Math.floor((t * bpm) / 60); if (bI !== beatI) { if (beatI >= 0 && beatN2) { const av = beatS / beatN2, j = av > 0.8 ? "Perfect" : av > 0.65 ? "Great" : av > 0.5 ? "Good" : "Miss"; judged[j]++; combo = j === "Miss" ? 0 : combo + 1; maxCombo = Math.max(maxCombo, combo); hit = { j, at: now, combo }; } beatI = bI; beatS = beatN2 = 0; } beatS += s; beatN2++; }
+    if (s != null && !refVideo) { const bI = Math.floor((t * bpm) / 60); if (bI !== beatI) { if (beatI >= 0 && beatN2) { const av = beatS / beatN2, j = av > 0.8 ? "Perfect" : av > 0.65 ? "Great" : av > 0.5 ? "Good" : "Miss"; judged[j]++; combo = j === "Miss" ? 0 : combo + 1; maxCombo = Math.max(maxCombo, combo); hit = { j, at: now, combo }; hitSound(j); } beatI = bI; beatS = beatN2 = 0; } beatS += s; beatN2++; }
     if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
   }
   drawParts(g);
+  if (playing && !paused && !refVideo && t >= 0 && !noFx()) { const bt = (t * bpm) / 60, ph = bt % 1, a = (1 - ph) * (1 - ph) * 0.8; if (a > 0.03) { g.save(); g.globalAlpha = a; g.lineWidth = 10; g.strokeStyle = ["#ff4fd8", "#7fd3ff", "#B8FF00", "#FFD23F"][Math.floor(bt) % 4]; g.strokeRect(5, 5, W - 10, H - 10); g.restore(); } }
   if (playing && !paused && hit && now - hit.at < 700) { const k = (now - hit.at) / 700, col = { Perfect: "#FFD23F", Great: "#B8FF00", Good: "#7fd3ff", Miss: "#ff8a8a" }[hit.j]; g.save(); g.textAlign = "center"; g.globalAlpha = 1 - k * k; const sc = noFx() ? 1 : 1 + 0.25 * Math.max(0, 1 - k * 4); g.translate(W / 2, 92); g.scale(sc, sc); g.font = "900 38px system-ui"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(hit.j === "Miss" ? "Miss" : hit.j + "!", 0, 0); if (hit.combo >= 3) { g.font = "800 24px system-ui"; g.fillStyle = "#fff"; g.fillText(`${hit.combo} combo`, 0, 32); } g.restore(); }
   if (playing && paused) { g.font = "900 56px system-ui"; g.textAlign = "center"; g.fillStyle = "#fff"; g.fillText("⏸ Paused", W / 2, H / 2); }
   if (playing) { const [w, col] = WORD(smooth ?? 0); g.font = "900 40px system-ui"; g.textAlign = "center"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(stream ? w : "Turn on camera to score", W / 2, H - 70); g.shadowBlur = 0;
