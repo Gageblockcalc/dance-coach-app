@@ -5,7 +5,7 @@ const P = (native && Cap.Plugins) || {};
 export const isNative = native;
 
 // ---- settings (localStorage only, never leaves the device) ----
-const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true };
+const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true, ghost: true };
 export const S = Object.assign({}, DEF, JSON.parse(localStorage.getItem("dc.settings") || "{}"));
 if (localStorage.getItem("dc.voice") === "1") S.voice = true; // migrate old toggle
 const save = () => localStorage.setItem("dc.settings", JSON.stringify(S));
@@ -63,7 +63,7 @@ function onboarding() {
 }
 
 function settings() {
-  const rows = [["sounds", "Sound effects", "Clicks, cheers and stingers"], ["voice", "Coach voice", "Coach Disco Dan reads his jokes out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"]];
+  const rows = [["sounds", "Sound effects", "Clicks, cheers and stingers"], ["voice", "Coach voice", "Coach Disco Dan reads his jokes out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"], ["ghost", "Ghost replay", "Faint outline of your best run on each song"]];
   if (native) rows.push(["reminder", "Daily reminder", "A gentle nudge for the daily challenge"]);
   const box = $("#settingsList");
   box.innerHTML = rows.map(([k, t, d]) => `<button class="switch" role="switch" aria-checked="${!!S[k]}" data-k="${k}"><span><b>${t}</b><small>${d}</small></span><i aria-hidden="true"></i></button>`).join("")

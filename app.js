@@ -13,6 +13,7 @@ initControls(); window.dcShowControls = showControls; initShop(); initShare();
 { const ds = document.getElementById("diffSel"); if (ds) { ds.value = localStorage.getItem("dc.diff") || "normal"; ds.onchange = () => localStorage.setItem("dc.diff", ds.value); } }
 { const qs = document.getElementById("qualSel"); if (qs) { qs.value = localStorage.getItem("dc.quality") || "auto"; qs.onchange = () => window.dcSetQuality(qs.value); } }
 for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VERSION || "";
+import { initTips, showTips, ghostStart, ghostRecord, ghostDraw, finishRun, boardHTML } from "./features.js";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
@@ -111,11 +112,14 @@ $("#fileIn").onchange = async (e) => {
 
 function start() {
   paused = false; document.body.classList.remove("paused");
-  sum = n = perfect = 0; smooth = null; playing = true; $("#result").hidden = true;
+  sum = n = perfect = 0; smooth = null; playing = true; $("#result").hidden = true; ghostStart(runKey());
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000; }
   $("#startBtn").textContent = "■ Stop"; document.body.classList.add("dancing");
 }
-let lastResult = null;
+let lastResult = null, lastBoard = null;
+const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : "song-" + track.id;
+window.dcGhostOn = () => S.ghost !== false;
+initTips(); document.getElementById("replayOb")?.addEventListener("click", () => { const ob = document.getElementById("onboard"); new MutationObserver((m, o) => { if (ob.hidden) { o.disconnect(); setTimeout(showTips, 400); } }).observe(ob, { attributes: true, attributeFilter: ["hidden"] }); });
 function toastMsg(t) { const e = document.getElementById("padToast"); if (!e) return; e.textContent = t; e.classList.add("show"); clearTimeout(toastMsg.t); toastMsg.t = setTimeout(() => e.classList.remove("show"), 2600); }
 async function resultCard() {
   if (!lastResult) return null; const c = document.createElement("canvas"); c.width = 1080; c.height = 1350; const x = c.getContext("2d"), r = lastResult;
@@ -125,7 +129,8 @@ async function resultCard() {
   x.fillStyle = "#fff"; x.font = "900 200px system-ui"; x.fillText(r.pct + "%", 540, 680);
   x.font = "700 52px system-ui"; x.fillStyle = "#FFD23F"; x.fillText(`${r.perfect} perfect moments`, 540, 790);
   x.fillStyle = "#cfc6e6"; x.font = "500 44px system-ui"; x.fillText(r.daily ? "Routine of the Day" : r.song, 540, 870); x.fillText(new Date().toLocaleDateString(), 540, 940);
-  try { const cv = document.getElementById("coach"); x.drawImage(cv, 390, 980, 300, 300); } catch {}
+  try { const cv = document.getElementById("coach"); x.drawImage(cv, lastBoard ? 80 : 390, 980, 300, 300); } catch {}
+  if (lastBoard) { x.textAlign = "left"; x.fillStyle = "#B8FF00"; x.font = "800 40px system-ui"; x.fillText("🏆 My top 5", 440, 1010); x.font = "600 32px system-ui"; lastBoard.top.forEach((b, i) => { x.fillStyle = b.at === lastBoard.at ? "#FFD23F" : "#fff"; x.fillText(`${i + 1}. ${b.pct}%  ${new Date(b.at).toLocaleDateString()}`, 440, 1058 + i * 44); }); x.textAlign = "center"; }
   x.fillStyle = "#fff"; x.font = "700 40px system-ui"; x.fillText("Can you beat me? dancecoach.pages.dev", 540, 1310);
   return new Promise((res) => c.toBlob(res, "image/png"));
 }
@@ -160,6 +165,7 @@ function stop() {
   playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
     $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div>${seasonLine() ? `<div class="note" style="margin-top:6px">🎙️ ${seasonLine()}</div>` : ""}<div class="row grow" style="margin-top:10px"><button id="cardBtn" class="b-sky">🖼 Save result card</button><button id="shareBtn" class="b-gold">📣 Share</button></div>`;
+    lastBoard = finishRun(runKey(), pct); $("#result").insertAdjacentHTML("beforeend", boardHTML(lastBoard, mode === "daily" ? "Routine of the Day" : track.name));
     lastResult = { pct, stars, perfect, daily: mode === "daily", song: track.name };
     $("#cardBtn").onclick = () => resultCard().then((b) => { if (!b) return; const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dance-coach-result.png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
     $("#shareBtn").onclick = () => share();
@@ -187,7 +193,8 @@ function setPaused(on) {
 }
 window.dcPause = setPaused;
 const WORD = (s) => (s > 0.8 ? ["Perfect!", "#FFD23F"] : s > 0.65 ? ["Great!", "#B8FF00"] : s > 0.5 ? ["Good", "#7fd3ff"] : ["Keep going!", "#fff"]);
-const INRES = +(new URLSearchParams(location.search).get("inres") ?? 256) || 0; // measured: 256 px input is ~10-15% faster than full camera frames let inC = null, inG = null;
+const INRES = +(new URLSearchParams(location.search).get("inres") ?? 256) || 0; // measured: 256 px input is ~10-15% faster than full camera frames
+let inC = null, inG = null;
 function inSrc() { if (!INRES || !cam.videoWidth) return cam; const sc = INRES / Math.max(cam.videoWidth, cam.videoHeight); if (sc >= 1) return cam; inC ??= document.createElement("canvas"); const w = Math.round(cam.videoWidth * sc), h = Math.round(cam.videoHeight * sc); if (inC.width !== w) { inC.width = w; inC.height = h; inG = inC.getContext("2d"); } inG.drawImage(cam, 0, 0, w, h); return inC; }
 const RM = matchMedia("(prefers-reduced-motion: reduce)");
 let quality = localStorage.getItem("dc.quality") || "auto", fpsE = 60, detE = 0, lastF = 0, parts = [];
@@ -213,6 +220,8 @@ function frame(now) {
   g.save(); g.translate(W, 0); g.scale(-1, 1);
   if (stream && cam.readyState >= 2) g.drawImage(cam, 0, 0, W, H); else { g.fillStyle = "#120a22"; g.fillRect(0, 0, W, H); }
   if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(inSrc(), now).landmarks?.[0] || null; } catch {} detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
+  if (playing) ghostDraw(g, t, W, H);
+  if (playing && !paused && lastPose && stream) ghostRecord(t, lastPose);
   if (lastPose && stream) { g.strokeStyle = "#ff4fd8"; g.lineWidth = 6; g.lineCap = "round"; for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.beginPath(); g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); g.stroke(); } }
   g.restore();
   g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, coachColor(), true); g.restore();
