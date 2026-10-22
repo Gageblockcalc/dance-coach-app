@@ -1,4 +1,5 @@
 import { LOOKS, getLook } from "./coach3d.js";
+import { STAGES, getStage } from "./stages.js";
 // UI layer: settings, onboarding, CC0 sound effects, haptics, reminders. No tracking, no network.
 const $ = (s) => document.querySelector(s);
 const Cap = window.Capacitor, native = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
@@ -68,10 +69,12 @@ function settings() {
   if (native) rows.push(["reminder", "Daily reminder", "A gentle nudge for the daily challenge"]);
   const box = $("#settingsList");
   box.innerHTML = `<label class="timeRow volRow"><span>🎵 Music volume</span><input type="range" id="musicVol" min="0" max="100" step="5" value="${S.musicVol ?? 70}" aria-label="Music volume"><output id="musicVolOut">${S.musicVol ?? 70}%</output></label>` + rows.map(([k, t, d]) => `<button class="switch" role="switch" aria-checked="${!!S[k]}" data-k="${k}"><span><b>${t}</b><small>${d}</small></span><i aria-hidden="true"></i></button>`).join("")
+    + `<div class="lookRow" role="group" aria-label="Dance stage"><b>Dance stage</b><div>${STAGES.map((l) => `<button class="lookChip stageChip" data-stage="${l.id}" aria-pressed="${getStage().id === l.id}" style="--c:${l.lights[0]}">${l.name}</button>`).join("")}</div></div>`
     + `<div class="lookRow" role="group" aria-label="Coach outfit"><b>Coach outfit</b><div>${LOOKS.map((l) => `<button class="lookChip" data-look="${l.id}" aria-pressed="${getLook().id === l.id}" style="--c:${l.top}">${l.name}</button>`).join("")}</div></div>`
     + (native ? `<label class="timeRow">Reminder time <input type="time" id="remindAt" value="${S.remindAt}"></label>` : `<p class="note">Daily reminders are available in the Android app.</p>`);
   box.onclick = async (e) => {
-    const lc = e.target.closest(".lookChip"); if (lc) { localStorage.setItem("dc.look", lc.dataset.look); box.querySelectorAll(".lookChip").forEach((x) => x.setAttribute("aria-pressed", x === lc)); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: "look" })); return; }
+    const sc = e.target.closest(".stageChip"); if (sc) { localStorage.setItem("dc.stage", sc.dataset.stage); box.querySelectorAll(".stageChip").forEach((x) => x.setAttribute("aria-pressed", x === sc)); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: "stage" })); return; }
+    const lc = e.target.closest(".lookChip"); if (lc) { localStorage.setItem("dc.look", lc.dataset.look); box.querySelectorAll(".lookChip:not(.stageChip)").forEach((x) => x.setAttribute("aria-pressed", x === lc)); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: "look" })); return; }
     const b = e.target.closest(".switch"); if (!b) return; const k = b.dataset.k; S[k] = !S[k];
     if (k === "reminder") { const ok = await setReminder(S[k]); if (!ok && S[k]) { S[k] = false; alert("Notifications are blocked. You can allow them in Android Settings › Apps › Dance Coach."); } }
     if (k === "voice" && !S.voice) window.speechSynthesis?.cancel();

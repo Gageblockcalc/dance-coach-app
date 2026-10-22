@@ -16,7 +16,7 @@ function base(st, W, H) { // static layer cached per size
     for (let x = 0; x < W;) { const w = W * (0.05 + rnd() * 0.08), h = H * (0.15 + rnd() * 0.35); g.fillStyle = "#0a0f22"; g.fillRect(x, H * 0.78 - h, w, h); g.fillStyle = "rgba(255,210,63,.55)"; for (let y = H * 0.78 - h + 6; y < H * 0.76; y += 9) for (let wx = x + 4; wx < x + w - 4; wx += 8) if (rnd() > 0.55) g.fillRect(wx, y, 3, 4); x += w + 2; }
     g.fillStyle = "#151a2e"; g.fillRect(0, H * 0.78, W, H); }
   if (st.id === "festival") { g.fillStyle = "#1a0830"; g.beginPath(); g.moveTo(0, H * 0.8); for (let x = 0; x <= W; x += W / 24) g.lineTo(x, H * 0.8 - Math.abs(Math.sin(x * 0.37)) * H * 0.06); g.lineTo(W, H); g.lineTo(0, H); g.fill();
-    g.fillStyle = "#2b1450"; g.fillRect(W * 0.1, H * 0.1, W * 0.05, H * 0.7); g.fillRect(W * 0.85, H * 0.1, W * 0.05, H * 0.7); g.fillRect(W * 0.1, H * 0.08, W * 0.8, H * 0.05); }
+    g.fillStyle = "rgba(43,20,80,.75)"; g.fillRect(W * 0.06, H * 0.1, W * 0.025, H * 0.7); g.fillRect(W * 0.915, H * 0.1, W * 0.025, H * 0.7); g.fillRect(W * 0.06, H * 0.08, W * 0.88, H * 0.025); }
   if (st.id === "club") { g.strokeStyle = "rgba(127,211,255,.18)"; g.lineWidth = 1; for (let i = -10; i <= 10; i++) { g.beginPath(); g.moveTo(W / 2 + i * W * 0.03, H * 0.72); g.lineTo(W / 2 + i * W * 0.12, H); g.stroke(); } g.beginPath(); g.moveTo(0, H * 0.72); g.lineTo(W, H * 0.72); g.stroke(); }
   if (st.id === "halloween") { g.fillStyle = "rgba(255,240,200,.9)"; g.beginPath(); g.arc(W * 0.8, H * 0.2, H * 0.08, 0, 7); g.fill();
     g.fillStyle = "#14081c"; g.beginPath(); g.moveTo(0, H * 0.82); for (let x = 0; x <= W; x += W / 10) g.lineTo(x, H * 0.78 + Math.sin(x) * H * 0.03); g.lineTo(W, H); g.lineTo(0, H); g.fill();
@@ -28,7 +28,7 @@ export function drawStage(g, W, H, beat, opts = {}) {
   const st = getStage(), still = opts.still;
   if (!opts.overlay) g.drawImage(base(st, W, H), 0, 0);
   if (still) return;
-  const ph = beat % 1, pulse = Math.pow(1 - ph, 2), bi = Math.floor(beat);
+  beat = Math.max(0, beat); const ph = beat % 1, pulse = Math.pow(1 - ph, 2), bi = Math.floor(beat);
   g.save(); g.globalCompositeOperation = "lighter"; g.globalAlpha = opts.overlay ? 0.22 : 0.5;
   for (let i = 0; i < 3; i++) { // sweeping spotlights
     const c = st.lights[(i + bi) % 3], x0 = W * (0.2 + i * 0.3), ang = Math.sin(beat * 0.5 + i * 2) * 0.5, len = H * 1.1;

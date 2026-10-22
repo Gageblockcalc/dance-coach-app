@@ -34,3 +34,6 @@ CC0 = https://creativecommons.org/publicdomain/zero/1.0/ . Attribution is not re
 | Coach avatar `vendor/vrm/coach.vrm` | pixiv Inc. "VRM1_Constraint_Twist_Sample" (three-vrm sample model, textures compressed) | VRM Public License 1.0 (https://vrm.dev/licenses/1.0/): redistribution and modification allowed, commercial use allowed, credit not required |
 | `vendor/vrm/vrm-bundle.mjs` | three.js r169 + @pixiv/three-vrm 3.5.5 | MIT |
 | Dance and victory motion | Procedural, driven by the game's own choreography | Original |
+
+## Dance stages
+Club, Festival, Rooftop and Halloween stages (backdrops, spotlights, lasers, haze) are drawn procedurally in code. Original, no external assets.
