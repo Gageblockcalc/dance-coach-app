@@ -5,7 +5,7 @@ const P = (native && Cap.Plugins) || {};
 export const isNative = native;
 
 // ---- settings (localStorage only, never leaves the device) ----
-const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true, ghost: true };
+const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true, ghost: true, big: /\b(TV|AFT[A-Z0-9]*|BRAVIA|GoogleTV|SMART-TV|Tizen|Web0S|CrKey)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).get("tv") === "1" };
 export const S = Object.assign({}, DEF, JSON.parse(localStorage.getItem("dc.settings") || "{}"));
 if (localStorage.getItem("dc.voice") === "1") S.voice = true; // migrate old toggle
 const save = () => localStorage.setItem("dc.settings", JSON.stringify(S));
@@ -63,7 +63,7 @@ function onboarding() {
 }
 
 function settings() {
-  const rows = [["sounds", "Sound effects", "Clicks, cheers and stingers"], ["voice", "Coach voice", "Coach Disco Dan reads his jokes out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"], ["ghost", "Ghost replay", "Faint outline of your best run on each song"]];
+  const rows = [["sounds", "Sound effects", "Clicks, cheers and stingers"], ["voice", "Coach voice", "Coach Disco Dan reads his jokes out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"], ["ghost", "Ghost replay", "Faint outline of your best run on each song"], ["big", "Large screen mode", "Bigger buttons and text for TVs — arrow keys or remote to move"]];
   if (native) rows.push(["reminder", "Daily reminder", "A gentle nudge for the daily challenge"]);
   const box = $("#settingsList");
   box.innerHTML = rows.map(([k, t, d]) => `<button class="switch" role="switch" aria-checked="${!!S[k]}" data-k="${k}"><span><b>${t}</b><small>${d}</small></span><i aria-hidden="true"></i></button>`).join("")
@@ -72,7 +72,7 @@ function settings() {
     const b = e.target.closest(".switch"); if (!b) return; const k = b.dataset.k; S[k] = !S[k];
     if (k === "reminder") { const ok = await setReminder(S[k]); if (!ok && S[k]) { S[k] = false; alert("Notifications are blocked. You can allow them in Android Settings › Apps › Dance Coach."); } }
     if (k === "voice" && !S.voice) window.speechSynthesis?.cancel();
-    if (k === "reduced" || k === "particles") applyMotion();
+    if (k === "reduced" || k === "particles") applyMotion(); if (k === "big") document.documentElement.classList.toggle("big", !!S.big);
     b.setAttribute("aria-checked", !!S[k]); save(); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: k }));
   };
   const t = $("#remindAt"); if (t) t.onchange = () => { S.remindAt = t.value; save(); if (S.reminder) setReminder(true); };

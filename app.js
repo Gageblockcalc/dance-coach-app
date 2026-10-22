@@ -1,6 +1,6 @@
 // Dance Coach — on-device pose scoring (MediaPipe). Camera frames never leave the device.
 import { sfx, haptic, S, setAudio } from "./ui.js";
-import { initPads, rumble } from "./gamepad.js";
+import { initPads, rumble, moveFocus } from "./gamepad.js";
 import { initI18n } from "./i18n.js";
 import { coins } from "./coins.js";
 import { seasonLine } from "./seasons.js";
@@ -13,7 +13,8 @@ initControls(); window.dcShowControls = showControls; initShop(); initShare();
 { const ds = document.getElementById("diffSel"); if (ds) { ds.value = localStorage.getItem("dc.diff") || "normal"; ds.onchange = () => localStorage.setItem("dc.diff", ds.value); } }
 { const qs = document.getElementById("qualSel"); if (qs) { qs.value = localStorage.getItem("dc.quality") || "auto"; qs.onchange = () => window.dcSetQuality(qs.value); } }
 for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VERSION || "";
-import { initTips, showTips, ghostStart, ghostRecord, ghostDraw, finishRun, boardHTML } from "./features.js";
+import { initTV, isTV, initTips, showTips, ghostStart, ghostRecord, ghostDraw, finishRun, boardHTML } from "./features.js";
+import { coachReset, coachAdd, coachReport, coachHTML } from "./coach.js";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
@@ -103,7 +104,7 @@ $("#camBtn").onclick = async () => {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
     cam.srcObject = stream; await cam.play(); $("#camBtn").textContent = "Camera off"; status("Loading pose tracker (on this device)… " + (seasonLine() || "Stretch those dancing feet!"));
     lm ??= await landmarker(); status("Ready! Pick a track and press Start.");
-  } catch (e) { status(stream ? "Pose tracker couldn't load: " + e.message : (window.Capacitor?.isNativePlatform?.() ? "Camera blocked — allow it in Android Settings › Apps › Dance Coach › Permissions." : "Camera blocked — allow it in your browser's site settings.")); }
+  } catch (e) { if (!stream && (!navigator.mediaDevices || /NotFound|Overconstrained|DevicesNotFound/.test(e?.name || ""))) { status("📷 No camera found on this device. Dance Coach needs a camera to score your moves — you can still press Start and dance along with Coach Disco Dan!"); return; } status(stream ? "Pose tracker couldn't load: " + e.message : (window.Capacitor?.isNativePlatform?.() ? "Camera blocked — allow it in Android Settings › Apps › Dance Coach › Permissions." : "Camera blocked — allow it in your browser's site settings.")); }
 };
 $("#fileIn").onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return; refVideo = document.createElement("video"); refVideo.src = URL.createObjectURL(f); refVideo.muted = false; refVideo.playsInline = true; refCache.clear();
@@ -112,14 +113,14 @@ $("#fileIn").onchange = async (e) => {
 
 function start() {
   paused = false; document.body.classList.remove("paused");
-  sum = n = perfect = 0; smooth = null; playing = true; $("#result").hidden = true; ghostStart(runKey());
+  sum = n = perfect = 0; smooth = null; playing = true; $("#result").hidden = true; ghostStart(runKey()); coachReset();
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000; }
   $("#startBtn").textContent = "■ Stop"; document.body.classList.add("dancing");
 }
 let lastResult = null, lastBoard = null;
 const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : "song-" + track.id;
 window.dcGhostOn = () => S.ghost !== false;
-initTips(); document.getElementById("replayOb")?.addEventListener("click", () => { const ob = document.getElementById("onboard"); new MutationObserver((m, o) => { if (ob.hidden) { o.disconnect(); setTimeout(showTips, 400); } }).observe(ob, { attributes: true, attributeFilter: ["hidden"] }); });
+initTips(); initTV(moveFocus); document.documentElement.classList.toggle("big", !!S.big); document.getElementById("replayOb")?.addEventListener("click", () => { const ob = document.getElementById("onboard"); new MutationObserver((m, o) => { if (ob.hidden) { o.disconnect(); setTimeout(showTips, 400); } }).observe(ob, { attributes: true, attributeFilter: ["hidden"] }); });
 function toastMsg(t) { const e = document.getElementById("padToast"); if (!e) return; e.textContent = t; e.classList.add("show"); clearTimeout(toastMsg.t); toastMsg.t = setTimeout(() => e.classList.remove("show"), 2600); }
 async function resultCard() {
   if (!lastResult) return null; const c = document.createElement("canvas"); c.width = 1080; c.height = 1350; const x = c.getContext("2d"), r = lastResult;
@@ -165,7 +166,8 @@ function stop() {
   playing = false; musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
     $("#result").hidden = false; $("#result").innerHTML = `<div style="font-size:40px">${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b><div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div>${seasonLine() ? `<div class="note" style="margin-top:6px">🎙️ ${seasonLine()}</div>` : ""}<div class="row grow" style="margin-top:10px"><button id="cardBtn" class="b-sky">🖼 Save result card</button><button id="shareBtn" class="b-gold">📣 Share</button></div>`;
-    lastBoard = finishRun(runKey(), pct); $("#result").insertAdjacentHTML("beforeend", boardHTML(lastBoard, mode === "daily" ? "Routine of the Day" : track.name));
+    lastBoard = finishRun(runKey(), pct); { const cr = coachReport(pct, localStorage.getItem("dc.diff") || "normal"); $("#result").insertAdjacentHTML("beforeend", coachHTML(cr)); const sb = document.getElementById("diffSug"); if (sb) sb.onclick = () => { localStorage.setItem("dc.diff", sb.dataset.d); const ds = document.getElementById("diffSel"); if (ds) ds.value = sb.dataset.d; sb.textContent = "✓ Difficulty set to " + sb.dataset.d; sb.disabled = true; }; }
+    $("#result").insertAdjacentHTML("beforeend", boardHTML(lastBoard, mode === "daily" ? "Routine of the Day" : track.name));
     lastResult = { pct, stars, perfect, daily: mode === "daily", song: track.name };
     $("#cardBtn").onclick = () => resultCard().then((b) => { if (!b) return; const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dance-coach-result.png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
     $("#shareBtn").onclick = () => share();
@@ -227,6 +229,7 @@ function frame(now) {
   g.save(); g.translate(W - 170, 10); g.fillStyle = "#1b1030"; g.fillRect(0, 0, 160, 160); drawCoach(g, 160, 160, ref, coachColor(), true); g.restore();
   if (playing && !paused && lastPose && stream) {
     const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
+    if (u && !refVideo) { const lag = 30 / bpm; coachAdd(u, ref, refV, t, routine.length * 2 * 60 / bpm, coachAt(t - lag, bpm).pose, coachAt(t + lag, bpm).pose); }
     if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
   }
   drawParts(g);

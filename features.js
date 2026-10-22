@@ -16,7 +16,7 @@ function tipEnd() { clearTimeout(tipT); if (tipBox) tipBox.hidden = true; localS
 export function showTips() { tipI = 0; tipShow(); }
 export function initTips() {
   const css = document.createElement("style");
-  css.textContent = `#tips{position:fixed;inset-inline:calc(12px + var(--sl,0px)) calc(12px + var(--sr,0px));bottom:calc(84px + var(--sb,0px));max-width:480px;margin-inline:auto;z-index:65;background:#2b1d4f;color:#fff;border:2px solid #B8FF00;border-radius:16px;padding:10px 12px;display:flex;gap:10px;align-items:center;font-size:15px;box-shadow:0 6px 24px #0008;animation:tipIn .3s ease-out}#tips span{flex:1}#tips small{color:#cfc6e6}#tips button{min-width:44px;min-height:44px}@keyframes tipIn{from{opacity:0;transform:translateY(10px)}}html.reduce #tips{animation:none}@media (prefers-reduced-motion:reduce){#tips{animation:none}}body.dancing:not(.paused) #tips{display:none}.pb{margin-top:12px;text-align:start;max-width:340px;margin-inline:auto}.pb h3{margin:0 0 4px;font-size:16px}.pb ol{list-style:none;margin:0;padding:0}.pb li{display:flex;gap:8px;align-items:baseline;padding:3px 6px;border-radius:8px}.pb li small{margin-inline-start:auto;color:#cfc6e6}.pb li.me{background:#3a2a66;outline:2px solid #FFD23F}`;
+  css.textContent = `#tips{position:fixed;inset-inline:calc(12px + var(--sl,0px)) calc(12px + var(--sr,0px));bottom:calc(84px + var(--sb,0px));max-width:480px;margin-inline:auto;z-index:65;background:#2b1d4f;color:#fff;border:2px solid #B8FF00;border-radius:16px;padding:10px 12px;display:flex;gap:10px;align-items:center;font-size:15px;box-shadow:0 6px 24px #0008;animation:tipIn .3s ease-out}#tips span{flex:1}#tips small{color:#cfc6e6}#tips button{min-width:44px;min-height:44px}@keyframes tipIn{from{opacity:0;transform:translateY(10px)}}html.reduce #tips{animation:none}@media (prefers-reduced-motion:reduce){#tips{animation:none}}body.dancing:not(.paused) #tips{display:none}.pb{margin-top:12px;text-align:start;max-width:340px;margin-inline:auto}.pb h3{margin:0 0 4px;font-size:16px}.pb ol{list-style:none;margin:0;padding:0}.pb li{display:flex;gap:8px;align-items:baseline;padding:3px 6px;border-radius:8px}.pb li small{margin-inline-start:auto;color:#cfc6e6}.pb li.me{background:#3a2a66;outline:2px solid #FFD23F}.tipsBox{margin:12px auto 0;max-width:420px;text-align:start}.tipsBox h3{margin:0 0 4px;font-size:16px}.tipsBox ul{margin:0 0 8px;padding-inline-start:18px}.tipsBox li{margin:4px 0}`;
   document.head.append(css);
   tipBox = document.createElement("div"); tipBox.id = "tips"; tipBox.hidden = true; tipBox.setAttribute("role", "status"); tipBox.setAttribute("aria-live", "polite");
   tipBox.innerHTML = `<span></span><small></small><button class="icon" id="tipNext" aria-label="Next tip">›</button><button class="icon" id="tipClose" aria-label="Dismiss tips">✕</button>`;
@@ -64,4 +64,23 @@ export function finishRun(key, pct) {
 export function boardHTML(res, title) {
   const rows = res.top.map((r, i) => `<li${r.at === res.at ? ' class="me" aria-current="true"' : ""}><b>${["🥇", "🥈", "🥉", "4.", "5."][i]}</b> ${r.pct}% <small>${new Date(r.at).toLocaleDateString()}</small></li>`).join("");
   return `<section class="pb" aria-label="Personal bests"><h3>🏆 Your top 5 · ${title}</h3><ol>${rows}</ol>${res.rank === 1 && res.top.length > 1 ? '<div class="note">New personal best!</div>' : ""}${res.newGhost ? '<div class="note">👻 Saved as your ghost for next time.</div>' : ""}</section>`;
+}
+
+// ---- 10-foot / TV mode: arrow-key (remote D-pad) focus navigation, big focus ring, large UI ----
+export const isTV = /\b(TV|AFT[A-Z0-9]*|BRAVIA|GoogleTV|SMART-TV|Tizen|Web0S|CrKey)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).get("tv") === "1";
+export function initTV(moveFocus) {
+  const css = document.createElement("style");
+  css.textContent = `:focus-visible{outline:4px solid #FFD23F!important;outline-offset:3px}html.big body{zoom:1.3}html.big .switch small{font-size:15px}`;
+  document.head.append(css);
+  addEventListener("keydown", (e) => {
+    const t = e.target, D = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+    if (!D || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (t && (/^(INPUT|TEXTAREA)$/.test(t.tagName) && !/^(checkbox|radio|button|range)$/.test(t.type)) || t?.isContentEditable) return;
+    const tvNav = document.documentElement.classList.contains("big") || document.documentElement.classList.contains("tv") || document.body.classList.contains("pad-on");
+    if (t?.tagName === "SELECT" && D[0] === 0 && !tvNav) return; // desktop: up/down change the choice; TV/remote: arrows always move
+    if (document.body.classList.contains("dancing") && !document.body.classList.contains("paused") && !document.querySelector(".sheet:not([hidden])")) return;
+    e.preventDefault(); moveFocus(D[0], D[1]);
+  });
+  addEventListener("keydown", (e) => { const t = e.target; if (e.key === "Enter" && t?.tagName === "SELECT" && (document.documentElement.classList.contains("big") || document.documentElement.classList.contains("tv"))) { e.preventDefault(); t.selectedIndex = (t.selectedIndex + 1) % t.options.length; t.dispatchEvent(new Event("change", { bubbles: true })); } });
+  if (isTV) document.documentElement.classList.add("tv");
 }
