@@ -4,6 +4,8 @@
 - Pose tracking: MediaPipe Tasks Vision 0.10.14 (Apache-2.0), bundled in `/vendor` (from npm @mediapipe/tasks-vision); Pose Landmarker Lite model (Apache-2.0) from Google MediaPipe models.
 - Coach routine and scoring adapted from OPPS Dance Coach (Nick Duncan, original moves).
 
+- Move to Earn (Couch Potato, rubber chicken, golden egg, silly outfit tints) is original art and code made for this app: inline SVG, colour tints on the pose-driven coach, no third-party assets. Released CC0. Step and shake detection uses `move-to-earn.js`, a small dependency-free motion-sensor module (MIT, original code from the same author's shared Move to Earn project, vendored unmodified, no third-party code). Squat and jumping-jack counting uses the existing camera pose, in `m2e-pose.js`.
+
 ## Sound effects (`/sfx`, each in .ogg plus a converted .mp3 fallback)
 
 | File | Original | Source | License |

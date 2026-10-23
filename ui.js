@@ -1,5 +1,6 @@
 import { LOOKS, getLook } from "./coach3d.js";
 import { STAGES, getStage } from "./stages.js";
+import { isOwned } from "./m2e.js";
 // UI layer: settings, onboarding, CC0 sound effects, haptics, reminders. No tracking, no network.
 const $ = (s) => document.querySelector(s);
 const Cap = window.Capacitor, native = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
@@ -7,7 +8,7 @@ const P = (native && Cap.Plugins) || {};
 export const isNative = native;
 
 // ---- settings (localStorage only, never leaves the device) ----
-const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true, ghost: true, coach3d: true, music: true, musicVol: 70, big: /\b(TV|AFT[A-Z0-9]*|BRAVIA|GoogleTV|SMART-TV|Tizen|Web0S|CrKey)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).get("tv") === "1" };
+const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true, m2e: false, ghost: true, coach3d: true, music: true, musicVol: 70, big: /\b(TV|AFT[A-Z0-9]*|BRAVIA|GoogleTV|SMART-TV|Tizen|Web0S|CrKey)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).get("tv") === "1" };
 export const S = Object.assign({}, DEF, JSON.parse(localStorage.getItem("dc.settings") || "{}"));
 if (localStorage.getItem("dc.voice") === "1") S.voice = true; // migrate old toggle
 const save = () => localStorage.setItem("dc.settings", JSON.stringify(S));
@@ -66,11 +67,12 @@ function onboarding() {
 
 function settings() {
   const rows = [["music", "Music", "Original beats for every song"], ["sounds", "Sound effects", "Clicks, cheers, hit sounds and stingers"], ["voice", "Coach voice", "Coach Disco Dan reads his jokes out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"], ["coach3d", "3D coach", "Animated 3D coach (2D on Low quality or slower devices)"], ["ghost", "Ghost replay", "Faint outline of your best run on each song"], ["big", "Large screen mode", "Bigger buttons and text for TVs — arrow keys or remote to move"]];
+  rows.push(["m2e", "Move to Earn (optional)", "Earn silly-outfit coins for steps, shakes and squats. Off by default; nothing is counted until you tap Start inside it. No location, nothing uploaded."]);
   if (native) rows.push(["reminder", "Daily reminder", "A gentle nudge for the daily challenge"]);
   const box = $("#settingsList");
   box.innerHTML = `<label class="timeRow volRow"><span>🎵 Music volume</span><input type="range" id="musicVol" min="0" max="100" step="5" value="${S.musicVol ?? 70}" aria-label="Music volume"><output id="musicVolOut">${S.musicVol ?? 70}%</output></label>` + rows.map(([k, t, d]) => `<button class="switch" role="switch" aria-checked="${!!S[k]}" data-k="${k}"><span><b>${t}</b><small>${d}</small></span><i aria-hidden="true"></i></button>`).join("")
     + `<div class="lookRow" role="group" aria-label="Dance stage"><b>Dance stage</b><div>${STAGES.map((l) => `<button class="lookChip stageChip" data-stage="${l.id}" aria-pressed="${getStage().id === l.id}" style="--c:${l.lights[0]}">${l.name}</button>`).join("")}</div></div>`
-    + `<div class="lookRow" role="group" aria-label="Coach outfit"><b>Coach outfit</b><div>${LOOKS.map((l) => `<button class="lookChip" data-look="${l.id}" aria-pressed="${getLook().id === l.id}" style="--c:${l.top}">${l.name}</button>`).join("")}</div></div>`
+    + `<div class="lookRow" id="lookRow" role="group" aria-label="Coach outfit"><b>Coach outfit</b><div>${LOOKS.filter((l) => !l.silly || isOwned(l.id)).map((l) => `<button class="lookChip" data-look="${l.id}" aria-pressed="${getLook().id === l.id}" style="--c:${l.top}">${l.name}</button>`).join("")}</div></div>`
     + (native ? `<label class="timeRow">Reminder time <input type="time" id="remindAt" value="${S.remindAt}"></label>` : `<p class="note">Daily reminders are available in the Android app.</p>`);
   box.onclick = async (e) => {
     const sc = e.target.closest(".stageChip"); if (sc) { localStorage.setItem("dc.stage", sc.dataset.stage); box.querySelectorAll(".stageChip").forEach((x) => x.setAttribute("aria-pressed", x === sc)); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: "stage" })); return; }
@@ -81,6 +83,8 @@ function settings() {
     if (k === "reduced" || k === "particles") applyMotion(); if (k === "big") document.documentElement.classList.toggle("big", !!S.big);
     b.setAttribute("aria-checked", !!S[k]); save(); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: k }));
   };
+  addEventListener("dc-m2e", () => { const r = $("#lookRow > div"); if (r) r.innerHTML = LOOKS.filter((l) => !l.silly || isOwned(l.id)).map((l) => `<button class="lookChip" data-look="${l.id}" aria-pressed="${getLook().id === l.id}" style="--c:${l.top}">${l.silly ? l.emoji + " " : ""}${l.name}</button>`).join(""); });
+  addEventListener("dc-settings", (e) => { if (e.detail === "look") box.querySelectorAll(".lookChip:not(.stageChip)").forEach((x) => x.setAttribute("aria-pressed", x.dataset.look === getLook().id)); });
   const mv = $("#musicVol"); if (mv) mv.oninput = () => { S.musicVol = +mv.value; $("#musicVolOut").textContent = mv.value + "%"; if (S.music === false && +mv.value > 0) { S.music = true; box.querySelector('[data-k="music"]')?.setAttribute("aria-checked", "true"); } save(); window.dcApplyMusicVol?.(); };
   const t = $("#remindAt"); if (t) t.onchange = () => { S.remindAt = t.value; save(); if (S.reminder) setReminder(true); };
   $("#settingsBtn").onclick = () => openSheet("#settings");

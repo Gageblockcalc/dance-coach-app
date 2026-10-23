@@ -17,7 +17,8 @@ import { initTV, isTV, initTips, showTips, ghostStart, ghostRecord, ghostDraw, f
 import { coachReset, coachAdd, coachReport, coachHTML } from "./coach.js";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
 import { drawStage } from "./stages.js";
-import { coach3dLoad, coach3dReady, coach3dRender, applyLook } from "./coach3d.js";
+import { coach3dLoad, coach3dReady, coach3dRender, applyLook, getLook } from "./coach3d.js";
+import "./m2e-ui.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
 const MODEL = new URL("./vendor/pose_landmarker_lite.task", location.href).href;
@@ -104,6 +105,7 @@ let stream = null, lm = null, refLM = null, playing = false, t0 = 0, sum = 0, n 
 let paused = false, pausedAt = 0;
 let lastBuzz = 0, rec = null, chunks = [], refVideo = null, refCache = new Map();
 const cam = $("#cam"), stage = $("#stage"), g = stage.getContext("2d"), coach = $("#coach"), cg = coach.getContext("2d");
+const coachCol = () => { const l = getLook(); return l.silly ? l.top : coachColor(); };
 const status = (s) => ($("#status").textContent = s);
 function fillTracks() { const sel = $("#track"); sel.innerHTML = TRACKS.map((t) => `<option value="${t.id}">${t.name} · ${t.bpm} BPM</option>`).join(""); sel.value = track.id; }
 fillTracks();
@@ -250,19 +252,19 @@ function frame(now) {
   if (vic) { const w = still ? 0 : Math.sin(now / 160); ref = [165 + w * 15, 200 + w * 30, -165 + w * 15, -200 + w * 30, 12, 0, -12, 0]; }
   const bt = playing ? t * (bpm / 60) : now / 600, stStill = still || quality === "low" || (quality === "auto" && playing && fpsE < 40), stFx = !document.documentElement.classList.contains("noparticles");
   const c3 = want3d() && coach3dReady() ? coach3dRender(ref, playing ? t * (bpm / 60) : now / 600, playing && !paused ? fpsE : 60, vic ? "victory" : "dance", still) : null;
-  drawStage(cg, 300, 300, bt, { still: stStill, fx: stFx }); if (c3) cg.drawImage(c3, 0, 0, 300, 300); else drawCoach(cg, 300, 300, ref, coachColor(), true);
+  drawStage(cg, 300, 300, bt, { still: stStill, fx: stFx }); if (c3) cg.drawImage(c3, 0, 0, 300, 300); else drawCoach(cg, 300, 300, ref, coachCol(), true);
   { const mt = refVideo ? "Following your video" : `${MOVES[c.idx].name} — ${MOVES[c.idx].tip} · next: ${MOVES[c.next].name}`; if (mt !== moveTxt) { moveTxt = mt; $("#move").textContent = mt; } }
   const W = stage.width, H = stage.height;
   g.save(); g.translate(W, 0); g.scale(-1, 1);
   if (stream && cam.readyState >= 2) g.drawImage(cam, 0, 0, W, H); else drawStage(g, W, H, bt, { still: stStill, fx: stFx });
   if (stream && cam.readyState >= 2 && !stStill) drawStage(g, W, H, bt, { overlay: true });
-  if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(inSrc(), now).landmarks?.[0] || null; } catch {} detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
+  if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(inSrc(), now).landmarks?.[0] || null; } catch {} if (lastPose && window.dcPose) window.dcPose(lastPose, now); detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
   if (playing) ghostDraw(g, t, W, H);
   if (playing && !paused && lastPose && stream) ghostRecord(t, lastPose);
   if (lastPose && stream) { const glow = !noFx() && quality !== "low" && !document.documentElement.classList.contains("noparticles"); g.lineCap = "round"; g.lineJoin = "round"; g.beginPath(); for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); }
     if (glow) { g.strokeStyle = "rgba(255,79,216,.28)"; g.lineWidth = 18; g.stroke(); g.strokeStyle = "rgba(127,211,255,.35)"; g.lineWidth = 10; g.stroke(); } g.strokeStyle = glow ? "#ffd6f5" : "#ff4fd8"; g.lineWidth = glow ? 4 : 6; g.stroke(); }
   g.restore();
-  g.save(); g.translate(W - 170, 10); drawStage(g, 160, 160, bt, { still: true }); if (c3) g.drawImage(c3, 0, 0, 160, 160); else drawCoach(g, 160, 160, ref, coachColor(), true); g.restore();
+  g.save(); g.translate(W - 170, 10); drawStage(g, 160, 160, bt, { still: true }); if (c3) g.drawImage(c3, 0, 0, 160, 160); else drawCoach(g, 160, 160, ref, coachCol(), true); g.restore();
   if (playing && !paused && !refVideo && t < 0) { const left = Math.ceil((-t * bpm) / 60); const ph = noFx() ? 0 : ((-t * bpm) / 60) % 1; g.save(); g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(W, H) * (0.28 + ph * 0.08))}px system-ui`; g.fillStyle = left <= 1 ? "#B8FF00" : "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 16; g.fillText(left > 3 ? "Ready?" : String(left), W / 2, H / 2 + Math.min(W, H) * 0.1); g.font = "800 28px system-ui"; g.fillStyle = "#fff"; g.fillText("Get in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); g.restore(); }
   if (playing && !paused && lastPose && stream && (refVideo || t >= 0)) {
     const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));

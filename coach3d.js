@@ -1,12 +1,25 @@
+import { isOwned } from "./m2e.js";
 /* 3D coach avatar (VRM, MToon toon shading). Lazy-loaded; falls back to the 2D coach. */
-export const LOOKS = [
+const BASE_LOOKS = [
   { id: "classic", name: "Classic", top: "#ffffff", bottom: "#ffffff", hair: "#ffffff" },
   { id: "neon", name: "Neon", top: "#b8ff00", bottom: "#7a5cff", hair: "#ff9cf0" },
   { id: "sunset", name: "Sunset", top: "#ff8a3d", bottom: "#ff4f7a", hair: "#ffd23f" },
   { id: "ocean", name: "Ocean", top: "#58c8ff", bottom: "#2a5cff", hair: "#9fe8ff" },
   { id: "mint", name: "Mint", top: "#7dffc2", bottom: "#2fb38a", hair: "#e8fff4" },
 ];
-export const getLook = () => LOOKS.find((l) => l.id === localStorage.getItem("dc.look")) || LOOKS[0];
+/* Silly outfits for Move to Earn: original colour tints only, unlocked with Move coins or from mystery crates. */
+export const SILLY = [
+  { id: "banana", name: "Banana Suit", emoji: "🍌", price: 30, silly: true, top: "#ffe135", bottom: "#ffd400", hair: "#8b5a2b" },
+  { id: "duck", name: "Rubber Duck", emoji: "🦆", price: 30, silly: true, top: "#fff04d", bottom: "#ff9d00", hair: "#fff04d" },
+  { id: "pickle", name: "Pickle Pal", emoji: "🥒", price: 40, silly: true, top: "#5fbf3a", bottom: "#2e7d32", hair: "#1b5e20" },
+  { id: "hotdog", name: "Hot Dog", emoji: "🌭", price: 40, silly: true, top: "#e8743b", bottom: "#ffd36e", hair: "#c0392b" },
+  { id: "cone", name: "Traffic Cone", emoji: "🔶", price: 40, silly: true, top: "#ff6a00", bottom: "#ffffff", hair: "#ff6a00" },
+  { id: "marsh", name: "Marshmallow Unicorn", emoji: "🦄", price: 50, silly: true, top: "#ffd6f5", bottom: "#c9b6ff", hair: "#7fffd4" },
+  { id: "disco", name: "Disco Ball", emoji: "🪩", price: 60, silly: true, top: "#d9d9ff", bottom: "#9aa0ff", hair: "#ffffff" },
+  { id: "potato", name: "Couch Potato", emoji: "🥔", price: 60, silly: true, top: "#c8a26b", bottom: "#8a6a3b", hair: "#5c4326" },
+];
+export const LOOKS = BASE_LOOKS.concat(SILLY);
+export const getLook = () => { const l = LOOKS.find((x) => x.id === localStorage.getItem("dc.look")) || LOOKS[0]; return l.silly && !isOwned(l.id) ? LOOKS[0] : l; };
 let T, R, scene, camera, vrm, clock, state = "off", failed = false, lowRun = 0, blinkT = 2, blinkK = 0, mats = [];
 const SIZE = 300;
 export const coach3dReady = () => state === "ready" && !failed;
