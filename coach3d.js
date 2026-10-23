@@ -1,4 +1,5 @@
 import { isOwned } from "./m2e.js";
+import { UNLOCK, level } from "./progress.js";
 /* 3D coach avatar (VRM, MToon toon shading). Lazy-loaded; falls back to the 2D coach. */
 const BASE_LOOKS = [
   { id: "classic", name: "Classic", top: "#ffffff", bottom: "#ffffff", hair: "#ffffff" },
@@ -18,8 +19,15 @@ export const SILLY = [
   { id: "disco", name: "Disco Ball", emoji: "🪩", price: 60, silly: true, top: "#d9d9ff", bottom: "#9aa0ff", hair: "#ffffff" },
   { id: "potato", name: "Couch Potato", emoji: "🥔", price: 60, silly: true, top: "#c8a26b", bottom: "#8a6a3b", hair: "#5c4326" },
 ];
-export const LOOKS = BASE_LOOKS.concat(SILLY);
-export const getLook = () => { const l = LOOKS.find((x) => x.id === localStorage.getItem("dc.look")) || LOOKS[0]; return l.silly && !isOwned(l.id) ? LOOKS[0] : l; };
+/* Level rewards: original colour tints, unlocked by playing (XP levels). */
+export const LEVEL_LOOKS = [
+  { id: "gold", name: "Gold Star", lvl: UNLOCK.gold, top: "#ffd23f", bottom: "#ff9d00", hair: "#fff2b0" },
+  { id: "ember", name: "Ember", lvl: UNLOCK.ember, top: "#ff6a3d", bottom: "#8a1c3a", hair: "#ffd23f" },
+  { id: "midnight", name: "Midnight", lvl: UNLOCK.midnight, top: "#3a2a8a", bottom: "#0d1240", hair: "#9fe8ff" },
+];
+export const LOOKS = BASE_LOOKS.concat(LEVEL_LOOKS, SILLY);
+export const lookLocked = (l) => (l.silly && !isOwned(l.id)) || (!!l.lvl && level() < l.lvl);
+export const getLook = () => { const l = LOOKS.find((x) => x.id === localStorage.getItem("dc.look")) || LOOKS[0]; return lookLocked(l) ? LOOKS[0] : l; };
 let T, R, scene, camera, vrm, clock, state = "off", failed = false, lowRun = 0, blinkT = 2, blinkK = 0, mats = [];
 const SIZE = 300;
 export const coach3dReady = () => state === "ready" && !failed;

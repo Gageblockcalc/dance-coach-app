@@ -20,6 +20,8 @@ import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js
 import { drawStage } from "./stages.js";
 import { coach3dLoad, coach3dReady, coach3dRender, applyLook, getLook } from "./coach3d.js";
 import "./m2e-ui.js";
+import { UNLOCK, level, dayKey, streakOf, onRun } from "./progress.js";
+import "./progress-ui.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
 const MODEL = new URL("./vendor/pose_landmarker_lite.task", location.href).href;
@@ -31,7 +33,12 @@ const TRACKS = [ // original patterns synthesized live (Web Audio), CC0 — no s
   { id: "bounce", name: "Bubble Bounce", bpm: 112, bass: [0, 3, 5, 7], root: 48, wave: "square", arp: [0, 12, 7, 12, 3, 12, 5, 12] },
   { id: "groove", name: "Sunset Groove", bpm: 92, bass: [0, 5, 3, 10], root: 43, wave: "triangle", arp: [0, 3, 7, 10, 12, 10, 7, 3] },
   { id: "glow", name: "Glow Up", bpm: 120, bass: [0, 8, 3, 10], root: 41, wave: "sawtooth", arp: [12, 7, 3, 7, 15, 7, 10, 7] },
+  // level rewards (new, original; the songs above stay open to everyone)
+  { id: "candy", name: "Candy Pop", bpm: 116, bass: [0, 5, 7, 3], root: 50, wave: "square", arp: [0, 4, 7, 12, 7, 4, 9, 12], lvl: UNLOCK.candy },
+  { id: "drive", name: "Midnight Drive", bpm: 104, bass: [0, 0, 3, 7], root: 40, wave: "sawtooth", arp: [0, 3, 7, 10, 7, 3, 12, 10], lvl: UNLOCK.drive },
+  { id: "turbo", name: "Turbo Hype", bpm: 128, bass: [0, 7, 5, 3], root: 43, wave: "square", arp: [12, 7, 12, 15, 12, 7, 10, 7], lvl: UNLOCK.turbo },
 ];
+const trackLocked = (t) => !!t.lvl && level() < t.lvl;
 let ac = null, master = null, sfxBus = null, musicBus = null, padBus = null, recDest = null, seqTimer = null, nextBeatT = 0, beatN = 0, track = TRACKS[0], noiseBuf = null;
 const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const lvl = (v, d) => Math.max(0, Math.min(100, v ?? d)) / 100;
@@ -75,7 +82,7 @@ function musicStart() { audio(); ac.resume(); beatN = 0; nextBeatT = ac.currentT
 function musicStop() { clearInterval(seqTimer); seqTimer = null; }
 
 // ---- daily challenge: date-seeded routine + track ----
-const today = new Date().toISOString().slice(0, 10);
+const today = dayKey(); // device-local date: the daily routine changes at your local midnight
 function rng(seed) { let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; }
 function dailyRoutine() { const r = rng(today); const order = MOVES.map((_, i) => i).slice(1).sort(() => r() - 0.5).slice(0, 8); return { routine: [0, ...order], track: TRACKS[Math.floor(r() * 3)] }; }
 const FULL = MOVES.map((_, i) => i);
@@ -110,15 +117,16 @@ let lastBuzz = 0, rec = null, chunks = [], refVideo = null, refCache = new Map()
 const cam = $("#cam"), stage = $("#stage"), g = stage.getContext("2d"), coach = $("#coach"), cg = coach.getContext("2d");
 const coachCol = () => { const l = getLook(); return l.silly ? l.top : coachColor(); };
 const status = (s) => ($("#status").textContent = s);
-function fillTracks() { const sel = $("#track"); sel.innerHTML = TRACKS.map((t) => `<option value="${t.id}">${t.name} · ${t.bpm} BPM</option>`).join(""); sel.value = track.id; }
+function fillTracks() { const sel = $("#track"); sel.innerHTML = TRACKS.map((t) => `<option value="${t.id}"${trackLocked(t) ? " disabled" : ""}>${t.name} · ${t.bpm} BPM${trackLocked(t) ? " · 🔒 Level " + t.lvl : ""}</option>`).join(""); sel.value = track.id; }
+addEventListener("dc-prog", () => { fillTracks(); });
 fillTracks();
 $("#track").onchange = (e) => (track = TRACKS.find((t) => t.id === e.target.value));
 const best = () => JSON.parse(localStorage.getItem("dc.best") || "{}");
-function weekCount() { const b = best(), d = new Date(); let c = 0; for (let i = 0; i < 7; i++) { const k = new Date(d - i * 864e5).toISOString().slice(0, 10); if (b[k] != null) c++; } return c; }
-function untilTomorrow() { const n = new Date(), m = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1)); const mins = Math.max(0, Math.round((m - n) / 6e4)); return `${Math.floor(mins / 60)}h ${mins % 60}m`; }
+function weekCount() { const b = best(), d = new Date(); let c = 0; for (let i = 0; i < 7; i++) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() - i); if (b[dayKey(x)] != null) c++; } return c; }
+function untilTomorrow() { const n = new Date(), m = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1); const mins = Math.max(0, Math.round((m - n) / 6e4)); return `${Math.floor(mins / 60)}h ${mins % 60}m`; }
 setInterval(() => { const e = document.getElementById("dcCount"); if (e) e.textContent = untilTomorrow(); }, 60000);
 function showDaily() { const d = dailyRoutine(), b = best()[today], st = streak(), wk = weekCount(); $("#daily").innerHTML = `<b class="big">🏆 Routine of the Day</b><div>${d.track.name} · ${d.routine.length} moves · 🔥 ${st}-day streak${b ? ` · best today <b>${b}%</b>` : ""}</div><div class="note" style="color:var(--mut)">${b ? "✅ Done for today! Come back tomorrow for a new routine" : st ? "Dance today to keep your streak alive" : "Start a streak today"} · new routine in <b id="dcCount">${untilTomorrow()}</b> · weekly goal ${Math.min(wk, 5)}/5 ${wk >= 5 ? "🎉" : ""}</div><div style="margin-top:6px">${d.routine.slice(1).map((i) => `<span class="chip">${MOVES[i].name}</span>`).join("")}</div>`; }
-function streak() { const b = best(); let s = 0, d = new Date(); for (;;) { const k = d.toISOString().slice(0, 10); if (b[k] == null) break; s++; d.setUTCDate(d.getUTCDate() - 1); } return s; }
+function streak() { return streakOf(new Set(Object.keys(best())), new Date()).streak; } // forgiving: one missed day is forgiven per 7 days; today not yet played doesn't break it
 showDaily();
 $("#dailyBtn").onclick = () => { const d = dailyRoutine(); routine = d.routine; track = d.track; $("#track").value = track.id; mode = "daily"; status("Daily challenge loaded. Turn on camera, then Start."); };
 $("#freeBtn").onclick = () => { routine = FULL; mode = "free"; status("Free dance: full routine."); };
@@ -199,7 +207,8 @@ function stop() {
     $("#cardBtn").onclick = () => resultCard().then((b) => { if (!b) return; const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dance-coach-result.png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
     $("#shareBtn").onclick = () => share();
     coins.onSongEnd({ stars, daily: mode === "daily", perfect, streak: streak() });
-    if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); } }
+    if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); }
+    try { const xo = onRun({ pct, stars, perfect, combo: maxCombo, daily: mode === "daily", trackId: refVideo ? "" : track.id, streak: streak(), goalMet: false }); lastResult.xp = xo.xp; window.dcProgressResult?.(xo, $("#result")); } catch {} }
   else if (wasPlaying) status(stream ? "Not enough moves seen to score — step back so your whole body shows, then try again." : "Turn on the camera to get a score.");
   if (rec && rec.state === "recording") rec.stop();
 }
@@ -304,7 +313,7 @@ setInterval(syncLock, 200);
 initPads({
   isPlaying: () => playing, isPaused: () => paused,
   start: () => { if (!playing) start(); else if (paused) setPaused(false); else setPaused(true); },
-  song: (d) => { if (playing) return; const i = (TRACKS.indexOf(track) + d + TRACKS.length) % TRACKS.length; track = TRACKS[i]; $("#track").value = track.id; status(`Song: ${track.name}`); },
+  song: (d) => { if (playing) return; let i = TRACKS.indexOf(track); for (let k = 0; k < TRACKS.length; k++) { i = (i + d + TRACKS.length) % TRACKS.length; if (!trackLocked(TRACKS[i])) break; } track = TRACKS[i]; $("#track").value = track.id; status(`Song: ${track.name}`); },
   stop: () => playing && stop(),
 });
 

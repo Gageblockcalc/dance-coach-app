@@ -1,6 +1,8 @@
 // Progress: XP, levels, badges, forgiving streak, run history. All local (localStorage "dc.prog"), no network, no personal data.
 const KEY = "dc.prog";
 export const MAX_LEVEL = 30;
+/** Unlock levels. Only NEW items are gated; everything that existed before stays available. */
+export const UNLOCK = { candy: 3, gold: 4, aurora: 5, drive: 6, ember: 7, sunrise: 8, turbo: 9, midnight: 12 };
 export const xpAt = (lvl) => 30 * lvl * (lvl - 1); // total XP needed to reach a level: L2=60, L3=180, L5=600, L10=2700
 export const levelFor = (xp) => { let l = 1; while (l < MAX_LEVEL && xp >= xpAt(l + 1)) l++; return l; };
 export const BADGES = [
@@ -50,7 +52,7 @@ export function onMoveCoins(todayCoins, day) {
   const s = load(), out = { xp: 0, badges: [], levelUp: 0 }; if (!(todayCoins >= 0)) return out;
   if (s.m2e.day !== day) s.m2e = { day, n: 0 };
   const d = Math.max(0, Math.min(todayCoins, 100) - s.m2e.n); if (!d) return out;
-  s.m2e.n += d; addXp(d * 2, out); out.xp = d * 2; award("mover", out); addXp(0, out); save(); emit("m2e"); return out;
+  s.m2e.n += d; out.xp = d * 2; award("mover", out); addXp(out.xp, out); save(); emit("m2e"); return out;
 }
 /** Per-move accuracy for the "Practice" routine: running average similarity per move index. */
 export function noteMove(idx, sim) { const s = load(), m = s.moves[idx] || (s.moves[idx] = [0, 0]); m[0] += sim; m[1]++; }

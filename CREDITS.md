@@ -40,5 +40,8 @@ CC0 = https://creativecommons.org/publicdomain/zero/1.0/ . Attribution is not re
 ## Dance stages
 Club, Festival, Rooftop and Halloween stages (backdrops, spotlights, lasers, haze) are drawn procedurally in code. Original, no external assets.
 
+## Progress, levels and unlocks
+XP, levels, badges, the forgiving streak and the three level-reward songs (Candy Pop, Midnight Drive, Turbo Hype, synthesized live with Web Audio from the same original note patterns as the other songs), the Aurora and Sunrise stage palettes and the Gold Star, Ember and Midnight outfit tints are original and made for this app (`progress.js`, `progress-ui.js`). Progress is stored only on the device (`dc.prog`).
+
 ## Coach banter
 The jokes, trash-talk lines and seasonal lines (`banter.js`, `seasons.js`, `app.js`) are original text written for this app. Nothing is copied from other games or comedians. The shared "trash-talk" guide from the OPPS project was reviewed but not used: it relies on a network AI service, which Dance Coach does not call.

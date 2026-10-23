@@ -64,6 +64,7 @@ body.dancing #coach{max-width:min(320px,max(120px,calc(100vh / var(--z,1) - 430p
 <label class="row hide-dance"><span style="color:var(--mut)" data-i18n="song">Song</span><select id="track" aria-label="Song" style="flex:1"></select></label>
 <div class="row grow"><button id="camBtn" data-i18n="cam">📷 Turn on camera</button><button id="startBtn" class="b-gold" data-i18n="start">▶ Start</button><button id="pauseCtl" class="b-sky pause-only" onclick="window.dcShowControls&&window.dcShowControls(5000)">❔ Controls</button></div>
 <div class="row grow"><button id="recBtn" class="b-pink" data-i18n="rec">⏺ Record clip</button><a id="dl" class="btn b-sky" hidden data-i18n="dl">⬇ Download</a><button id="shareDanceBtn" class="b-gold" hidden>📤 Share my dance</button><button id="shareClipBtn" class="b-soft" hidden>📣 Send clip</button><label class="btn b-sky hide-dance" tabindex="0" data-i18n="myvid">🎞 Use my video<input id="fileIn" type="file" accept="video/*" hidden></label></div>
+<div class="row grow hide-dance" id="progRow"><button id="progBtn" class="b-gold">⭐ Level 1</button></div>
 <div class="row grow hide-dance" id="m2eRow"><button id="m2eBtn" class="b-sky" hidden>🏃 Move to Earn</button></div>
 <div id="shareBox" class="hide-dance"><p id="shareMsg" class="note" role="status" aria-live="polite"></p><div id="shareAuth" class="row grow" hidden><button id="signInBtn" class="b-sky">🔑 Sign in with passkey</button><button id="signUpBtn" class="b-soft">✨ Create free account</button></div></div>
 <div id="status" class="panel" role="status" aria-live="polite" data-i18n="status">Your camera stays on this device — nothing is uploaded.</div>
@@ -93,6 +94,7 @@ body.dancing #coach{max-width:min(320px,max(120px,calc(100vh / var(--z,1) - 430p
  <div class="row"><button id="privacyBtn" class="link" data-i18n="privacyBtn">Privacy policy</button><button id="replayOb" class="link" data-i18n="tutorial">Show tutorial again</button><a class="link btn" href="CREDITS.md" data-i18n="credits">Credits</a><a class="link btn" href="mailto:tekjeep@gmail.com?subject=Dance%20Coach%20feedback" data-i18n="feedback">Feedback</a><a class="link btn" href="whats-new.html">What's new</a><button class="link" onclick="window.dcShare&&window.dcShare()">📣 Share app</button></div><p class="note ver" style="color:var(--mut)"></p>
 </div></div>
 
+<div id="prog" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Your progress"><div></div></div>
 <div id="m2e" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Move to Earn"><div></div></div>
 
 <div id="privacy" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Privacy policy"><div>

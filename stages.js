@@ -1,11 +1,15 @@
 /* Procedural dance venues drawn behind the coach / camera view. Low quality or reduce motion = static gradient. */
+import { UNLOCK, level } from "./progress.js";
 export const STAGES = [
   { id: "club", name: "Club", a: "#1b0b3a", b: "#05020d", lights: ["#ff4fd8", "#7fd3ff", "#b8ff00"] },
   { id: "festival", name: "Festival", a: "#ff8a3d", b: "#2a0f4a", lights: ["#ffd23f", "#ff4f7a", "#58c8ff"] },
   { id: "rooftop", name: "Rooftop", a: "#0b1a3a", b: "#02040c", lights: ["#9fe8ff", "#ffd23f", "#ff9cf0"] },
   { id: "halloween", name: "Halloween", a: "#2a0f3a", b: "#0a0410", lights: ["#ff8a00", "#7dff6a", "#b07aff"] },
+  { id: "aurora", name: "Aurora", a: "#06283d", b: "#02060f", lights: ["#7dffc2", "#58c8ff", "#c9b6ff"], lvl: UNLOCK.aurora },
+  { id: "sunrise", name: "Sunrise", a: "#ff9a5a", b: "#3a1456", lights: ["#ffe08a", "#ff7aa8", "#9fe8ff"], lvl: UNLOCK.sunrise },
 ];
-export const getStage = () => STAGES.find((s) => s.id === localStorage.getItem("dc.stage")) || STAGES[0];
+export const stageLocked = (s) => !!s.lvl && level() < s.lvl;
+export const getStage = () => { const s = STAGES.find((x) => x.id === localStorage.getItem("dc.stage")) || STAGES[0]; return stageLocked(s) ? STAGES[0] : s; };
 const cache = new Map();
 function base(st, W, H) { // static layer cached per size
   const k = st.id + W + "x" + H; if (cache.has(k)) return cache.get(k);

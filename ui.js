@@ -1,5 +1,6 @@
-import { LOOKS, getLook } from "./coach3d.js";
-import { STAGES, getStage } from "./stages.js";
+import { LOOKS, getLook, lookLocked } from "./coach3d.js";
+import { STAGES, getStage, stageLocked } from "./stages.js";
+import { level } from "./progress.js";
 import { isOwned } from "./m2e.js";
 // UI layer: settings, onboarding, CC0 sound effects, haptics, reminders. No tracking, no network.
 const $ = (s) => document.querySelector(s);
@@ -66,14 +67,20 @@ function onboarding() {
 }
 
 const VOLS = [["musicVol", "🎵", "Music", 70], ["sfxVol", "🔔", "Sound effects", 80], ["voiceVol", "🗣️", "Coach voice", 100]];
+const lockTxt = (l) => (l.lvl && level() < l.lvl ? ` 🔒 Lv ${l.lvl}` : "");
+const lockAttr = (l) => (l.lvl && level() < l.lvl ? ` disabled aria-label="${l.name}, unlocks at level ${l.lvl}"` : "");
+const stageHTML = () => STAGES.map((l) => `<button class="lookChip stageChip" data-stage="${l.id}" aria-pressed="${getStage().id === l.id}" style="--c:${l.lights[0]}"${lockAttr(l)}>${l.name}${lockTxt(l)}</button>`).join("");
+const lookHTML = () => LOOKS.filter((l) => !l.silly || isOwned(l.id)).map((l) => `<button class="lookChip" data-look="${l.id}" aria-pressed="${getLook().id === l.id}" style="--c:${l.top}"${lockAttr(l)}>${l.silly ? l.emoji + " " : ""}${l.name}${lockTxt(l)}</button>`).join("");
+function refreshLooks() { const r = $("#lookRow > div"); if (r) r.innerHTML = lookHTML(); const t = document.querySelector('[aria-label="Dance stage"] > div'); if (t) t.innerHTML = stageHTML(); }
+
 function settings() {
   const rows = [["music", "Music", "Original beats for every song"], ["sounds", "Sound effects", "Clicks, cheers, hit sounds and stingers"], ["banter", "Coach jokes & commentary", "Funny lines from Coach Disco Dan. Always clean and family-friendly."], ["smack", "Playful trash talk", "Friendly teasing about the beat and the disco ball, never about real people. Clean. Turn off any time."], ["voice", "Coach voice", "Coach Disco Dan reads his lines out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"], ["coach3d", "3D coach", "Animated 3D coach (2D on Low quality or slower devices)"], ["ghost", "Ghost replay", "Faint outline of your best run on each song"], ["big", "Large screen mode", "Bigger buttons and text for TVs — arrow keys or remote to move"]];
   rows.push(["m2e", "Move to Earn (optional)", "Earn silly-outfit coins for steps, shakes and squats. Off by default; nothing is counted until you tap Start inside it. No location, nothing uploaded."]);
   if (native) rows.push(["reminder", "Daily reminder", "A gentle nudge for the daily challenge"]);
   const box = $("#settingsList");
   box.innerHTML = VOLS.map(([k, ic, t, d]) => `<label class="timeRow volRow"><span>${ic} ${t}</span><input type="range" id="${k}" min="0" max="100" step="5" value="${S[k] ?? d}" aria-label="${t} volume"><output id="${k}Out">${S[k] ?? d}%</output></label>`).join("") + rows.map(([k, t, d]) => `<button class="switch" role="switch" aria-checked="${!!S[k]}" data-k="${k}"><span><b>${t}</b><small>${d}</small></span><i aria-hidden="true"></i></button>`).join("")
-    + `<div class="lookRow" role="group" aria-label="Dance stage"><b>Dance stage</b><div>${STAGES.map((l) => `<button class="lookChip stageChip" data-stage="${l.id}" aria-pressed="${getStage().id === l.id}" style="--c:${l.lights[0]}">${l.name}</button>`).join("")}</div></div>`
-    + `<div class="lookRow" id="lookRow" role="group" aria-label="Coach outfit"><b>Coach outfit</b><div>${LOOKS.filter((l) => !l.silly || isOwned(l.id)).map((l) => `<button class="lookChip" data-look="${l.id}" aria-pressed="${getLook().id === l.id}" style="--c:${l.top}">${l.name}</button>`).join("")}</div></div>`
+    + `<div class="lookRow" role="group" aria-label="Dance stage"><b>Dance stage</b><div>${stageHTML()}</div></div>`
+    + `<div class="lookRow" id="lookRow" role="group" aria-label="Coach outfit"><b>Coach outfit</b><div>${lookHTML()}</div></div>`
     + (native ? `<label class="timeRow">Reminder time <input type="time" id="remindAt" value="${S.remindAt}"></label>` : `<p class="note">Daily reminders are available in the Android app.</p>`);
   box.onclick = async (e) => {
     const sc = e.target.closest(".stageChip"); if (sc) { localStorage.setItem("dc.stage", sc.dataset.stage); box.querySelectorAll(".stageChip").forEach((x) => x.setAttribute("aria-pressed", x === sc)); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: "stage" })); return; }
@@ -84,7 +91,7 @@ function settings() {
     if (k === "reduced" || k === "particles") applyMotion(); if (k === "big") document.documentElement.classList.toggle("big", !!S.big);
     b.setAttribute("aria-checked", !!S[k]); save(); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: k }));
   };
-  addEventListener("dc-m2e", () => { const r = $("#lookRow > div"); if (r) r.innerHTML = LOOKS.filter((l) => !l.silly || isOwned(l.id)).map((l) => `<button class="lookChip" data-look="${l.id}" aria-pressed="${getLook().id === l.id}" style="--c:${l.top}">${l.silly ? l.emoji + " " : ""}${l.name}</button>`).join(""); });
+  addEventListener("dc-m2e", refreshLooks); addEventListener("dc-prog", refreshLooks);
   addEventListener("dc-settings", (e) => { if (e.detail === "look") box.querySelectorAll(".lookChip:not(.stageChip)").forEach((x) => x.setAttribute("aria-pressed", x.dataset.look === getLook().id)); });
   for (const [k, , , d] of VOLS) { const el = $("#" + k); if (!el) continue; el.oninput = () => { S[k] = +el.value; $("#" + k + "Out").textContent = el.value + "%"; const sw = { musicVol: "music", sfxVol: "sounds", voiceVol: "voice" }[k]; if (sw && k !== "voiceVol" && S[sw] === false && +el.value > 0) { S[sw] = true; box.querySelector(`[data-k="${sw}"]`)?.setAttribute("aria-checked", "true"); } save(); window.dcApplyMusicVol?.(); if (k === "voiceVol" && S.voice && +el.value > 0) window.speechSynthesis?.cancel(); }; }
   const t = $("#remindAt"); if (t) t.onchange = () => { S.remindAt = t.value; save(); if (S.reminder) setReminder(true); };
