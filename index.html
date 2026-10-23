@@ -40,6 +40,17 @@ button,.btn,.chip{overflow-wrap:anywhere;text-align:center}h2,p{overflow-wrap:an
 .shopItem{display:flex;align-items:center;gap:10px;padding:6px 0}.shopItem i{flex:0 0 28px;height:28px;border-radius:50%;border:2px solid #fff3}.shopItem span{flex:1;min-width:0}.shopItem small{display:block;color:var(--mut)}.shopItem button{min-height:44px;font-size:15px;padding:0 12px}
 #coins{flex:0 0 auto;white-space:nowrap;font-size:14px;padding:6px 10px}
 body.dancing [data-aibuddybtn]{display:none!important}
+/* Portrait: size stage so camera + coach both fit on one screen while dancing */
+body.dancing #stage{width:min(100%,calc(max(260px,100vh / var(--z,1) - 392px) * .75));height:auto;margin-inline:auto}
+/* Wide/landscape dance layout: stage fits the screen height, big coach beside it (no scrolling mid-dance) */
+html.big{--z:1.3}
+@media (min-width:640px) and (min-aspect-ratio:6/5){body.dancing main{max-width:1240px;grid-template-columns:calc((100vh / var(--z,1) - 28px) * .75) minmax(240px,1fr);column-gap:20px;row-gap:10px;align-content:start;align-items:start;padding-top:calc(8px + var(--st));padding-bottom:12px}
+body.dancing main>*{grid-column:2}
+body.dancing main>#stage{grid-column:1;grid-row:1 / span 14;position:sticky;top:calc(8px + var(--st));width:100%;height:auto;margin:0}
+body.dancing #coachPanel{flex-direction:column;align-items:center;text-align:center}
+body.dancing #coach{max-width:min(320px,max(120px,calc(100vh / var(--z,1) - 430px)));width:100%}
+@media (max-height:520px){body.dancing header{display:none}body.dancing #coachPanel{flex-direction:row;text-align:left}body.dancing #coach{max-width:120px;flex:0 0 auto}}}
+
 </style>
 <script src="https://nick-hub-static.pages.dev/embed.js" data-site="dancecoach" data-chat="off" data-feedback="off" data-media="off" defer onerror="this.remove()"></script>
 <script src="https://nick-apk-test.pages.dev/get-app.js" data-app="dancecoach" defer onerror="this.remove()"></script>
@@ -56,7 +67,7 @@ body.dancing [data-aibuddybtn]{display:none!important}
 <div id="shareBox" class="hide-dance"><p id="shareMsg" class="note" role="status" aria-live="polite"></p><div id="shareAuth" class="row grow" hidden><button id="signInBtn" class="b-sky">🔑 Sign in with passkey</button><button id="signUpBtn" class="b-soft">✨ Create free account</button></div></div>
 <div id="status" class="panel" role="status" aria-live="polite" data-i18n="status">Your camera stays on this device — nothing is uploaded.</div>
 <canvas id="stage" width="720" height="960" role="img" aria-label="Camera view with your pose and score"></canvas>
-<div class="panel row"><canvas id="coach" width="300" height="300" role="img" aria-label="Coach showing the current move"></canvas><div id="move" aria-live="off" style="flex:1"></div></div>
+<div class="panel row" id="coachPanel"><canvas id="coach" width="300" height="300" role="img" aria-label="Coach showing the current move"></canvas><div id="move" aria-live="off" style="flex:1"></div></div>
 <div id="result" class="panel" hidden role="status" aria-live="assertive"></div><video id="cam" playsinline muted></video>
 <footer class="hide-dance">Pose tracking runs on your device; camera video is never uploaded. No accounts, no data collected. <a href="privacy.html">Privacy</a> · <a href="CREDITS.md">Credits</a><br>Tip: YouTube videos can't be read by apps — use "Use my video" with a file.<br><nav id="nick-hub-also" data-hub-ssr="1" aria-label="More from Nick"><b>More from Nick</b><div>Games: <a href="https://free-halloween-games.pages.dev/" target="_blank" rel="noopener">Free Halloween Games</a> · <a href="https://oppsgo.com/" target="_blank" rel="noopener">Free Online Games</a> · <a href="https://drivinggame.pages.dev/" target="_blank" rel="noopener">Driving Game</a></div><div>Tools: <a href="https://askmachinist.com/" target="_blank" rel="noopener">Ask a Machinist</a> · <a href="https://avalancheplan.pages.dev/" target="_blank" rel="noopener">Debt Payoff Planner</a> · <a href="https://cradlecue.pages.dev/" target="_blank" rel="noopener">CradleCue Baby Tracker</a> · <a href="https://gageblockcalc.com/" target="_blank" rel="noopener">Gage Block Calculator</a></div><div>Studio: <a href="https://stpetewebco.com/" target="_blank" rel="noopener">St. Pete Web Design</a></div></nav><a href="https://buymeacoffee.com/tekjeep" target="_blank" rel="noopener noreferrer">☕ Buy me a coffee</a> · <a href="mailto:tekjeep@gmail.com?subject=Dance%20Coach%20feedback">Feedback</a> · <a href="whats-new.html">What's new</a> · <span class="ver"></span> (<a href="https://github.com/Gageblockcalc/dance-coach-app/issues" target="_blank" rel="noopener noreferrer">GitHub</a>)<div id="get-app"></div></footer>
 </main>
