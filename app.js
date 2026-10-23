@@ -4,6 +4,7 @@ import { initPads, rumble, moveFocus } from "./gamepad.js";
 import { initI18n } from "./i18n.js";
 import { coins } from "./coins.js";
 import { seasonLine } from "./seasons.js";
+import { banterFor } from "./banter.js";
 import { initShare, hubShare } from "./share.js";
 import { initShop, coachColor } from "./shop.js";
 import { initControls, showControls } from "./controls.js";
@@ -31,20 +32,22 @@ const TRACKS = [ // original patterns synthesized live (Web Audio), CC0 — no s
   { id: "groove", name: "Sunset Groove", bpm: 92, bass: [0, 5, 3, 10], root: 43, wave: "triangle", arp: [0, 3, 7, 10, 12, 10, 7, 3] },
   { id: "glow", name: "Glow Up", bpm: 120, bass: [0, 8, 3, 10], root: 41, wave: "sawtooth", arp: [12, 7, 3, 7, 15, 7, 10, 7] },
 ];
-let ac = null, master = null, musicBus = null, padBus = null, recDest = null, seqTimer = null, nextBeatT = 0, beatN = 0, track = TRACKS[0], noiseBuf = null;
+let ac = null, master = null, sfxBus = null, musicBus = null, padBus = null, recDest = null, seqTimer = null, nextBeatT = 0, beatN = 0, track = TRACKS[0], noiseBuf = null;
 const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
-const musicLevel = () => (S.music === false ? 0 : Math.max(0, Math.min(100, S.musicVol ?? 70)) / 100);
-function applyMusicVol() { if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.05); }
-window.addEventListener("dc-settings", applyMusicVol); window.dcApplyMusicVol = applyMusicVol;
+const lvl = (v, d) => Math.max(0, Math.min(100, v ?? d)) / 100;
+const musicLevel = () => (S.music === false ? 0 : lvl(S.musicVol, 70));
+const sfxLevel = () => (S.sounds === false ? 0 : lvl(S.sfxVol, 80) / 0.8);
+function applyMusicVol() { if (musicBus) musicBus.gain.setTargetAtTime(musicLevel(), ac.currentTime, 0.05); if (sfxBus) sfxBus.gain.setTargetAtTime(sfxLevel(), ac.currentTime, 0.05); }
+window.addEventListener("dc-settings", applyMusicVol); window.dcApplyMusicVol = applyMusicVol; window.dcAudioLevels = () => ({ music: musicBus ? +musicBus.gain.value.toFixed(3) : null, sfx: sfxBus ? +sfxBus.gain.value.toFixed(3) : null });
 function audio() {
   if (!ac) { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.5;
     const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; master.connect(comp).connect(ac.destination);
     recDest = ac.createMediaStreamDestination(); comp.connect(recDest);
-    musicBus = ac.createGain(); musicBus.gain.value = musicLevel(); musicBus.connect(master); padBus = ac.createGain(); padBus.connect(musicBus);
+    musicBus = ac.createGain(); musicBus.gain.value = musicLevel(); musicBus.connect(master); sfxBus = ac.createGain(); sfxBus.gain.value = sfxLevel(); sfxBus.connect(master); padBus = ac.createGain(); padBus.connect(musicBus);
     noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.25, ac.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
   return ac;
 }
-setAudio(() => (audio(), { ac, out: master }));
+setAudio(() => (audio(), { ac, out: sfxBus }));
 function blip(t, f, dur, type, vol, out = musicBus, cut = 0) { const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.001, t + dur); let n = o; if (cut) { const fl = ac.createBiquadFilter(); fl.type = "lowpass"; fl.frequency.setValueAtTime(cut, t); fl.Q.value = 6; o.connect(fl); n = fl; } n.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.02); }
 function kick(t, v = 0.9) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.24); o.connect(g).connect(musicBus); o.start(t); o.stop(t + 0.26);
   padBus.gain.cancelScheduledValues(t); padBus.gain.setValueAtTime(0.25, t); padBus.gain.linearRampToValueAtTime(1, t + 0.22); } // sidechain pump
@@ -66,8 +69,8 @@ function schedule() {
   }
 }
 function hitSound(j) { if (!ac || S.sounds === false) return; const t = ac.currentTime + 0.01, base = track.root + 48;
-  if (j === "Perfect") { blip(t, hz(base + 12), 0.25, "triangle", 0.12, master); blip(t + 0.06, hz(base + 19), 0.3, "triangle", 0.1, master); noise(t, 0.12, "highpass", 9000, 0.06, master); }
-  else if (j === "Great") blip(t, hz(base + 12), 0.18, "triangle", 0.08, master); }
+  if (j === "Perfect") { blip(t, hz(base + 12), 0.25, "triangle", 0.12, sfxBus); blip(t + 0.06, hz(base + 19), 0.3, "triangle", 0.1, sfxBus); noise(t, 0.12, "highpass", 9000, 0.06, sfxBus); }
+  else if (j === "Great") blip(t, hz(base + 12), 0.18, "triangle", 0.08, sfxBus); }
 function musicStart() { audio(); ac.resume(); beatN = 0; nextBeatT = ac.currentTime + 0.1; clearInterval(seqTimer); seqTimer = setInterval(schedule, 50); schedule(); return nextBeatT; }
 function musicStop() { clearInterval(seqTimer); seqTimer = null; }
 
@@ -359,13 +362,18 @@ css.textContent = `#host{position:fixed;left:calc(16px + var(--sl));right:calc(1
 #host.show{opacity:1;transform:none}@media (prefers-reduced-motion: reduce){#host{transition:none;transform:none}}html.reduce #host{transition:none;transform:none}`;
 document.head.appendChild(css);
 let hideT = 0;
-function say(kind, force) {
-  const nowT = performance.now(); if (!force && nowT - lastSay < 8000) return; lastSay = nowT;
-  const sl = kind !== "miss" && Math.random() < 0.5 ? seasonLine() : null;
-  if (sl) { bubble.querySelector("span").textContent = sl; bubble.classList.add("show"); clearTimeout(hideT); hideT = setTimeout(() => bubble.classList.remove("show"), 4500); if (S.voice && "speechSynthesis" in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(sl); u.rate = 1.05; u.pitch = 1.1; speechSynthesis.speak(u); } return; }
-  const L = LINES[kind]; let i; do { i = Math.floor(Math.random() * L.length); } while (L.length > 1 && i === lastIdx[kind]); lastIdx[kind] = i;
-  bubble.querySelector("span").textContent = L[i]; bubble.classList.add("show"); clearTimeout(hideT); hideT = setTimeout(() => bubble.classList.remove("show"), 4500);
-  if (S.voice && "speechSynthesis" in window) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(L[i]); u.rate = 1.05; u.pitch = 1.1; speechSynthesis.speak(u); }
+function showLine(text) {
+  bubble.querySelector("span").textContent = text; bubble.classList.add("show"); clearTimeout(hideT); hideT = setTimeout(() => bubble.classList.remove("show"), 4500);
+  if (S.voice && "speechSynthesis" in window && S.voiceVol !== 0) { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.05; u.pitch = 1.1; u.volume = Math.max(0, Math.min(1, (S.voiceVol ?? 100) / 100)); speechSynthesis.speak(u); }
+}
+function say(kind, force, pct) {
+  const nowT = performance.now(); if (S.banter === false && S.smack === false) { bubble.classList.remove("show"); return; } if (!force && nowT - lastSay < 8000) return; lastSay = nowT;
+  const b = banterFor(kind, pct, S); // new clean jokes + playful trash talk, each with its own toggle
+  if (b && b.from === "smack") return showLine(b.text);
+  if (S.banter === false) return; // jokes muted and no trash talk line for this moment
+  if (b && Math.random() < 0.5) return showLine(b.text);
+  const sl = kind !== "miss" && Math.random() < 0.5 ? seasonLine() : null; if (sl) return showLine(sl);
+  const L = LINES[kind] || LINES.end; let i; do { i = Math.floor(Math.random() * L.length); } while (L.length > 1 && i === lastIdx[kind]); lastIdx[kind] = i; showLine(L[i]);
 }
 window.addEventListener("dc-settings", (e) => { if (e.detail === "voice" && S.voice) say("start", true); });
 // hook moments
@@ -373,7 +381,7 @@ let wasPlaying = false, goodRun = 0, badRun = 0;
 setInterval(() => {
   if (paused) return;
   if (playing && !wasPlaying) { try { window.OppsBuddy?.close(); } catch {} goodRun = badRun = 0; say("start", true); sfx("start", 0.6); haptic("medium"); }
-  if (!playing && wasPlaying && n > 20) { victoryUntil = performance.now() + 6000; say("end", true); sfx("cheer", 0.7); setTimeout(() => sfx("end", 0.6), 300); haptic("success"); }
+  if (!playing && wasPlaying && n > 20) { victoryUntil = performance.now() + 6000; say("end", true, n ? Math.round((sum / n) * 100) : 0); sfx("cheer", 0.7); setTimeout(() => sfx("end", 0.6), 300); haptic("success"); }
   wasPlaying = playing;
   if (playing && stream && smooth != null) {
     if (smooth > 0.7) { goodRun++; badRun = 0; if (goodRun === 6) { if (!(rec && rec.state === "recording")) toastMsg("🔥 Clip-worthy streak! Tap ⏺ Record clip next time."); say("streak"); sfx("perfect", 0.6); haptic("medium"); if (!RM.matches && quality !== "low") stage.animate([{ transform: "translate(0,0)" }, { transform: "translate(-5px,2px)" }, { transform: "translate(4px,-2px)" }, { transform: "translate(0,0)" }], { duration: 260 }); } }

@@ -4,7 +4,7 @@
 - Pose tracking: MediaPipe Tasks Vision 0.10.14 (Apache-2.0), bundled in `/vendor` (from npm @mediapipe/tasks-vision); Pose Landmarker Lite model (Apache-2.0) from Google MediaPipe models.
 - Coach routine and scoring adapted from OPPS Dance Coach (Nick Duncan, original moves).
 
-- Move to Earn (Couch Potato, rubber chicken, golden egg, silly outfit tints) is original art and code made for this app: inline SVG, colour tints on the pose-driven coach, no third-party assets. Released CC0. Step and shake detection uses `move-to-earn.js`, a small dependency-free motion-sensor module (MIT, original code from the same author's shared Move to Earn project, vendored unmodified, no third-party code). Squat and jumping-jack counting uses the existing camera pose, in `m2e-pose.js`.
+- Move to Earn (Couch Potato, rubber chicken, golden egg, silly outfit tints) is original art and code made for this app: inline SVG, colour tints on the pose-driven coach, no third-party assets. Released CC0. Step and shake detection uses `move-to-earn.js`, a small dependency-free motion-sensor module (MIT, original code from the same author's shared Move to Earn project, vendored unmodified, no third-party code). Re-vendored at v1.0.3 (unmodified copy of the shared module). Squat and jumping-jack counting uses the existing camera pose, in `m2e-pose.js`.
 
 ## Sound effects (`/sfx`, each in .ogg plus a converted .mp3 fallback)
 
@@ -39,3 +39,6 @@ CC0 = https://creativecommons.org/publicdomain/zero/1.0/ . Attribution is not re
 
 ## Dance stages
 Club, Festival, Rooftop and Halloween stages (backdrops, spotlights, lasers, haze) are drawn procedurally in code. Original, no external assets.
+
+## Coach banter
+The jokes, trash-talk lines and seasonal lines (`banter.js`, `seasons.js`, `app.js`) are original text written for this app. Nothing is copied from other games or comedians. The shared "trash-talk" guide from the OPPS project was reviewed but not used: it relies on a network AI service, which Dance Coach does not call.
