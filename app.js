@@ -3,7 +3,7 @@ import { sfx, haptic, S, setAudio } from "./ui.js";
 import { initPads, rumble, moveFocus } from "./gamepad.js";
 import { initI18n } from "./i18n.js";
 import { coins } from "./coins.js";
-import { seasonLine } from "./seasons.js";
+import { seasonLine, activeSeason, THEMES, seasonLabel, eventKey, EVENT_GOAL } from "./seasons.js";
 import { banterFor } from "./banter.js";
 import { initShare, hubShare } from "./share.js";
 import { initShop, coachColor } from "./shop.js";
@@ -123,7 +123,18 @@ const coachCol = () => { const l = getLook(); return l.silly ? l.top : coachColo
 const status = (s) => ($("#status").textContent = s);
 function fillTracks() { const sel = $("#track"); sel.innerHTML = TRACKS.map((t) => `<option value="${t.id}"${trackLocked(t) ? " disabled" : ""}>${t.name} · ${t.bpm} BPM${trackLocked(t) ? " · 🔒 Level " + t.lvl : ""}</option>`).join(""); sel.value = track.id; }
 addEventListener("dc-prog", () => { fillTracks(); });
-fillTracks();
+// Seasonal tune + event challenge (Settings › Seasonal themes: Auto / a season / Off)
+function syncSeason() {
+  const i = TRACKS.findIndex((t) => t.id === "season"); if (i >= 0) TRACKS.splice(i, 1);
+  const sid = activeSeason(); if (sid) TRACKS.push(Object.assign({}, THEMES[sid].tune, { id: "season", name: "🎵 " + THEMES[sid].tune.name, season: sid }));
+  if (!TRACKS.includes(track)) track = TRACKS.find((t) => t.id === track.id) || TRACKS[0];
+  if (!sid && mode === "event") { mode = "free"; routine = FULL; }
+  fillTracks(); const b = document.getElementById("eventBtn"); if (b) { b.hidden = !sid; if (sid) b.textContent = seasonLabel(sid) + " event"; }
+}
+function eventPlan() { const sid = activeSeason(); if (!sid) return null; const p = dailyPlan(eventKey(sid), 1, MOVES.length, 4); return { sid, key: eventKey(sid), routine: p.routine, track: TRACKS.find((t) => t.id === "season"), goal: EVENT_GOAL }; }
+document.getElementById("eventBtn")?.addEventListener("click", () => { if (playing) return; const e = eventPlan(); if (!e) return; routine = e.routine; track = e.track; $("#track").value = track.id; mode = "event"; status(`${seasonLabel(e.sid)} event loaded: ${e.routine.length - 1} moves, goal ${e.goal}%. Turn on camera, then Start.`); });
+addEventListener("dc-settings", (e) => { if (e.detail === "season" && !playing) syncSeason(); });
+syncSeason();
 $("#track").onchange = (e) => (track = TRACKS.find((t) => t.id === e.target.value));
 const best = () => JSON.parse(localStorage.getItem("dc.best") || "{}");
 function weekCount() { const b = best(), d = new Date(); let c = 0; for (let i = 0; i < 7; i++) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() - i); if (b[dayKey(x)] != null) c++; } return c; }
@@ -150,14 +161,14 @@ $("#fileIn").onchange = async (e) => {
 
 function start() {
   paused = false; document.body.classList.remove("paused");
-  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || refVideo ? 1 : speedPref(); ghostStart(runKey()); coachReset(); liveReset();
+  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || mode === "event" || refVideo ? 1 : speedPref(); ghostStart(runKey()); coachReset(); liveReset();
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000 + (4 * 60000) / BPM(); /* 4-beat count-in */ }
   $("#startBtn").textContent = "■ Stop"; document.body.style.setProperty("--spb", (60 / BPM()).toFixed(3) + "s"); document.body.classList.add("dancing");
 }
 let lastResult = null, lastBoard = null;
 let combo = 0, maxCombo = 0, judged = {}, beatI = -1, beatS = 0, beatN2 = 0, hit = null; // per-beat judgement + combo
 const noFx = () => RM.matches || document.documentElement.classList.contains("reduce");
-const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : mode === "practice" ? "practice" : "song-" + track.id + (runSpd !== 1 ? "@" + runSpd : "");
+const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : mode === "practice" ? "practice" : mode === "event" ? "event-" + (eventPlan()?.key || "") : "song-" + track.id + (runSpd !== 1 ? "@" + runSpd : "");
 window.dcGhostOn = () => S.ghost !== false;
 initTips(); initTV(moveFocus); document.documentElement.classList.toggle("big", !!S.big); document.getElementById("replayOb")?.addEventListener("click", () => { const ob = document.getElementById("onboard"); new MutationObserver((m, o) => { if (ob.hidden) { o.disconnect(); setTimeout(showTips, 400); } }).observe(ob, { attributes: true, attributeFilter: ["hidden"] }); });
 function toastMsg(t) { const e = document.getElementById("padToast"); if (!e) return; e.textContent = t; e.classList.add("show"); clearTimeout(toastMsg.t); toastMsg.t = setTimeout(() => e.classList.remove("show"), 2600); }
@@ -165,6 +176,7 @@ async function resultCard() {
   if (!lastResult) return null; const c = document.createElement("canvas"); c.width = 1080; c.height = 1350; const x = c.getContext("2d"), r = lastResult;
   const gr = x.createLinearGradient(0, 0, 1080, 1350); gr.addColorStop(0, "#3a1670"); gr.addColorStop(1, "#120a22"); x.fillStyle = gr; x.fillRect(0, 0, 1080, 1350);
   x.textAlign = "center"; x.fillStyle = "#B8FF00"; x.font = "900 84px system-ui"; x.fillText("💃 Dance Coach", 540, 170);
+  x.fillStyle = "#FFD23F"; x.font = "800 46px system-ui"; x.fillText(`Level ${level()}${r.xp ? " · +" + r.xp + " XP" : ""}`, 540, 250); x.fillStyle = "#B8FF00";
   x.font = "120px system-ui"; x.fillText("⭐".repeat(r.stars) || "💪", 540, 420);
   x.fillStyle = "#fff"; x.font = "900 200px system-ui"; x.fillText(r.pct + "%", 540, 680);
   x.font = "700 52px system-ui"; x.fillStyle = "#FFD23F"; x.fillText(`${r.perfect} perfect moments${r.combo ? " · best combo ×" + r.combo : ""}`, 540, 790);
@@ -238,8 +250,9 @@ function stop() {
     $("#shareBtn").onclick = () => share();
     coins.onSongEnd({ stars, daily: mode === "daily", perfect, streak: streak() });
     if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); }
-    flushMoves(); const goalMet = mode === "daily" && pct >= dailyRoutine().goal; if (mode === "daily") $("#result").insertAdjacentHTML("beforeend", `<div class="note">🎯 Daily goal ${dailyRoutine().goal}%: ${goalMet ? "reached! +25 XP" : "not yet. Try again any time today"}</div>`);
-    try { const xo = onRun({ pct, stars, perfect, combo: maxCombo, daily: mode === "daily", trackId: refVideo ? "" : track.id, streak: streak(), goalMet, speed: runSpd }); lastResult.xp = xo.xp; window.dcProgressResult?.(xo, $("#result")); } catch {} if (!refVideo) smartBox(); }
+    flushMoves(); const ev = mode === "event" ? eventPlan() : null, evMet = !!ev && pct >= ev.goal; if (ev) $("#result").insertAdjacentHTML("beforeend", `<div class="note">${seasonLabel(ev.sid)} event goal ${ev.goal}%: ${evMet ? "reached! 🎉" : "not yet. Try again any time this season"}</div>`);
+    const goalMet = mode === "daily" && pct >= dailyRoutine().goal; if (mode === "daily") $("#result").insertAdjacentHTML("beforeend", `<div class="note">🎯 Daily goal ${dailyRoutine().goal}%: ${goalMet ? "reached! +25 XP" : "not yet. Try again any time today"}</div>`);
+    try { const xo = onRun({ pct, stars, perfect, combo: maxCombo, daily: mode === "daily", trackId: refVideo ? "" : track.id, streak: streak(), goalMet, speed: runSpd, eventKey: ev ? ev.key : "", eventMet: evMet }); lastResult.xp = xo.xp; window.dcProgressResult?.(xo, $("#result")); } catch {} if (!refVideo) smartBox(); }
   else if (wasPlaying) status(stream ? "Not enough moves seen to score — step back so your whole body shows, then try again." : "Turn on the camera to get a score.");
   if (rec && rec.state === "recording") rec.stop();
 }

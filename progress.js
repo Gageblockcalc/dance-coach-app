@@ -19,6 +19,7 @@ export const BADGES = [
   { id: "lvl5", icon: "⭐", name: "Level 5", desc: "Reach level 5", xp: 0 },
   { id: "lvl10", icon: "🌠", name: "Level 10", desc: "Reach level 10", xp: 0 },
   { id: "alltracks", icon: "🎧", name: "Sampler", desc: "Dance to 4 different songs", xp: 40 },
+  { id: "season", icon: "🎉", name: "Season star", desc: "Reach a seasonal event goal", xp: 30 },
   { id: "mover", icon: "👟", name: "Mover", desc: "Earn a Move coin", xp: 20 },
 ];
 const blank = () => ({ xp: 0, badges: {}, songs: 0, tracks: [], m2e: { day: "", n: 0 }, hist: [], moves: {}, v: 1 });
@@ -43,6 +44,7 @@ export function onRun(r) {
   award("first", out); if (r.stars >= 3) award("star3", out); if (r.perfect >= 10) award("perf10", out); if (r.combo >= 8) award("combo8", out);
   if (r.daily) award("daily1", out); if (r.goalMet) award("goal", out); if (r.streak >= 3) award("streak3", out); if (r.streak >= 7) award("streak7", out);
   if (s.songs >= 10) award("songs10", out); if (s.songs >= 50) award("songs50", out); if (s.tracks.length >= 4) award("alltracks", out);
+  if (r.eventKey && r.eventMet) { s.events = s.events || {}; if (!s.events[r.eventKey]) { s.events[r.eventKey] = Date.now(); out.xp += 50; out.event = r.eventKey; award("season", out); } } // once per season
   addXp(out.xp, out); addXp(0, out);
   s.hist.push({ t: r.trackId || "?", p: r.pct, d: today, sp: r.speed || 1 }); if (s.hist.length > 40) s.hist.splice(0, s.hist.length - 40);
   save(); emit("run"); return out;

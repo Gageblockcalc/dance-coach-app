@@ -1,5 +1,6 @@
 import { isOwned } from "./m2e.js";
 import { UNLOCK, level } from "./progress.js";
+import { activeSeason, THEMES, SEASON_IDS } from "./seasons.js";
 /* 3D coach avatar (VRM, MToon toon shading). Lazy-loaded; falls back to the 2D coach. */
 const BASE_LOOKS = [
   { id: "classic", name: "Classic", top: "#ffffff", bottom: "#ffffff", hair: "#ffffff" },
@@ -25,8 +26,10 @@ export const LEVEL_LOOKS = [
   { id: "ember", name: "Ember", lvl: UNLOCK.ember, top: "#ff6a3d", bottom: "#8a1c3a", hair: "#ffd23f" },
   { id: "midnight", name: "Midnight", lvl: UNLOCK.midnight, top: "#3a2a8a", bottom: "#0d1240", hair: "#9fe8ff" },
 ];
-export const LOOKS = BASE_LOOKS.concat(LEVEL_LOOKS, SILLY);
-export const lookLocked = (l) => (l.silly && !isOwned(l.id)) || (!!l.lvl && level() < l.lvl);
+/* Seasonal outfits: only available while their season is active (Settings › Seasonal themes). */
+export const SEASON_LOOKS = SEASON_IDS.map((sid) => Object.assign({ id: "s-" + sid, season: sid }, THEMES[sid].look));
+export const LOOKS = BASE_LOOKS.concat(LEVEL_LOOKS, SEASON_LOOKS, SILLY);
+export const lookLocked = (l) => (l.season && activeSeason() !== l.season) || (l.silly && !isOwned(l.id)) || (!!l.lvl && level() < l.lvl);
 export const getLook = () => { const l = LOOKS.find((x) => x.id === localStorage.getItem("dc.look")) || LOOKS[0]; return lookLocked(l) ? LOOKS[0] : l; };
 let T, R, scene, camera, vrm, clock, state = "off", failed = false, lowRun = 0, blinkT = 2, blinkK = 0, mats = [];
 const SIZE = 300;

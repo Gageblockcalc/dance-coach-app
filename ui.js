@@ -1,5 +1,6 @@
 import { LOOKS, getLook, lookLocked } from "./coach3d.js";
-import { STAGES, getStage, stageLocked } from "./stages.js";
+import { STAGES, getStage, stageLocked, allStages } from "./stages.js";
+import { SEASON_IDS, SEASONS, seasonMode, setSeasonMode } from "./seasons.js";
 import { level } from "./progress.js";
 import { isOwned } from "./m2e.js";
 // UI layer: settings, onboarding, CC0 sound effects, haptics, reminders. No tracking, no network.
@@ -70,8 +71,8 @@ function onboarding() {
 const VOLS = [["musicVol", "🎵", "Music", 70], ["sfxVol", "🔔", "Sound effects", 80], ["voiceVol", "🗣️", "Coach voice", 100]];
 const lockTxt = (l) => (l.lvl && level() < l.lvl ? ` 🔒 Lv ${l.lvl}` : "");
 const lockAttr = (l) => (l.lvl && level() < l.lvl ? ` disabled aria-label="${l.name}, unlocks at level ${l.lvl}"` : "");
-const stageHTML = () => STAGES.map((l) => `<button class="lookChip stageChip" data-stage="${l.id}" aria-pressed="${getStage().id === l.id}" style="--c:${l.lights[0]}"${lockAttr(l)}>${l.name}${lockTxt(l)}</button>`).join("");
-const lookHTML = () => LOOKS.filter((l) => !l.silly || isOwned(l.id)).map((l) => `<button class="lookChip" data-look="${l.id}" aria-pressed="${getLook().id === l.id}" style="--c:${l.top}"${lockAttr(l)}>${l.silly ? l.emoji + " " : ""}${l.name}${lockTxt(l)}</button>`).join("");
+const stageHTML = () => allStages().map((l) => `<button class="lookChip stageChip" data-stage="${l.id}" aria-pressed="${getStage().id === l.id}" style="--c:${l.lights[0]}"${lockAttr(l)}>${l.name}${lockTxt(l)}</button>`).join("");
+const lookHTML = () => LOOKS.filter((l) => (!l.silly || isOwned(l.id)) && (!l.season || !lookLocked(l))).map((l) => `<button class="lookChip" data-look="${l.id}" aria-pressed="${getLook().id === l.id}" style="--c:${l.top}"${lockAttr(l)}>${l.silly || l.season ? l.emoji + " " : ""}${l.name}${lockTxt(l)}</button>`).join("");
 function refreshLooks() { const r = $("#lookRow > div"); if (r) r.innerHTML = lookHTML(); const t = document.querySelector('[aria-label="Dance stage"] > div'); if (t) t.innerHTML = stageHTML(); }
 
 function settings() {
@@ -80,6 +81,7 @@ function settings() {
   if (native) rows.push(["reminder", "Daily reminder", "A gentle nudge for the daily challenge"]);
   const box = $("#settingsList");
   box.innerHTML = VOLS.map(([k, ic, t, d]) => `<label class="timeRow volRow"><span>${ic} ${t}</span><input type="range" id="${k}" min="0" max="100" step="5" value="${S[k] ?? d}" aria-label="${t} volume"><output id="${k}Out">${S[k] ?? d}%</output></label>`).join("") + rows.map(([k, t, d]) => `<button class="switch" role="switch" aria-checked="${!!S[k]}" data-k="${k}"><span><b>${t}</b><small>${d}</small></span><i aria-hidden="true"></i></button>`).join("")
+    + `<label class="timeRow"><span>🎉 Seasonal themes<small style="display:block;opacity:.75">Stage, outfit, tune and event for the season</small></span><select id="seasonSel" aria-label="Seasonal themes"><option value="auto">Auto (by date)</option>${SEASON_IDS.map((i) => `<option value="${i}">${SEASONS[i].label}</option>`).join("")}<option value="off">Off</option></select></label>`
     + `<div class="lookRow" role="group" aria-label="Dance stage"><b>Dance stage</b><div>${stageHTML()}</div></div>`
     + `<div class="lookRow" id="lookRow" role="group" aria-label="Coach outfit"><b>Coach outfit</b><div>${lookHTML()}</div></div>`
     + (native ? `<label class="timeRow">Reminder time <input type="time" id="remindAt" value="${S.remindAt}"></label>` : `<p class="note">Daily reminders are available in the Android app.</p>`);
@@ -95,6 +97,7 @@ function settings() {
   addEventListener("dc-m2e", refreshLooks); addEventListener("dc-prog", refreshLooks);
   addEventListener("dc-settings", (e) => { if (e.detail === "look") box.querySelectorAll(".lookChip:not(.stageChip)").forEach((x) => x.setAttribute("aria-pressed", x.dataset.look === getLook().id)); });
   for (const [k, , , d] of VOLS) { const el = $("#" + k); if (!el) continue; el.oninput = () => { S[k] = +el.value; $("#" + k + "Out").textContent = el.value + "%"; const sw = { musicVol: "music", sfxVol: "sounds", voiceVol: "voice" }[k]; if (sw && k !== "voiceVol" && S[sw] === false && +el.value > 0) { S[sw] = true; box.querySelector(`[data-k="${sw}"]`)?.setAttribute("aria-checked", "true"); } save(); window.dcApplyMusicVol?.(); if (k === "voiceVol" && S.voice && +el.value > 0) window.speechSynthesis?.cancel(); }; }
+  const ss = $("#seasonSel"); if (ss) { ss.value = seasonMode(); ss.onchange = () => { setSeasonMode(ss.value); refreshLooks(); haptic(); for (const d of ["season", "stage", "look"]) window.dispatchEvent(new CustomEvent("dc-settings", { detail: d })); }; }
   const t = $("#remindAt"); if (t) t.onchange = () => { S.remindAt = t.value; save(); if (S.reminder) setReminder(true); };
   $("#settingsBtn").onclick = () => openSheet("#settings");
   document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => closeSheet("#" + b.closest(".sheet").id)));

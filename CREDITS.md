@@ -40,6 +40,9 @@ CC0 = https://creativecommons.org/publicdomain/zero/1.0/ . Attribution is not re
 ## Dance stages
 Club, Festival, Rooftop and Halloween stages (backdrops, spotlights, lasers, haze) are drawn procedurally in code. Original, no external assets.
 
+## Seasonal themes
+Seasonal stage palettes and decor (drawn in code), outfit color tints, seasonal lines and the nine seasonal tunes (synth pattern data played live with Web Audio) are original to Dance Coach, CC0. No samples or third-party assets.
+
 ## Progress, levels and unlocks
 XP, levels, badges, the forgiving streak and the three level-reward songs (Candy Pop, Midnight Drive, Turbo Hype, synthesized live with Web Audio from the same original note patterns as the other songs), the Aurora and Sunrise stage palettes and the Gold Star, Ember and Midnight outfit tints are original and made for this app (`progress.js`, `progress-ui.js`). Progress is stored only on the device (`dc.prog`).
 
