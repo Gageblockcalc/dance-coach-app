@@ -11,16 +11,18 @@ import { initControls, showControls } from "./controls.js";
 initI18n();
 coins.onOpen();
 initControls(); window.dcShowControls = showControls; initShop(); initShare();
+{ const ss = document.getElementById("speedSel"); if (ss) { ss.value = SPEEDS.includes(+localStorage.getItem("dc.speed")) ? String(+localStorage.getItem("dc.speed")) : "1"; ss.onchange = () => localStorage.setItem("dc.speed", ss.value); } }
 { const ds = document.getElementById("diffSel"); if (ds) { ds.value = localStorage.getItem("dc.diff") || "normal"; ds.onchange = () => localStorage.setItem("dc.diff", ds.value); } }
 { const qs = document.getElementById("qualSel"); if (qs) { qs.value = localStorage.getItem("dc.quality") || "auto"; qs.onchange = () => window.dcSetQuality(qs.value); } }
 for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VERSION || "";
 import { initTV, isTV, initTips, showTips, ghostStart, ghostRecord, ghostDraw, finishRun, boardHTML } from "./features.js";
-import { coachReset, coachAdd, coachReport, coachHTML } from "./coach.js";
+import { coachReset, coachAdd, coachReport, coachHTML, liveReset, coachLive } from "./coach.js";
 import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
 import { drawStage } from "./stages.js";
 import { coach3dLoad, coach3dReady, coach3dRender, applyLook, getLook } from "./coach3d.js";
 import "./m2e-ui.js";
-import { UNLOCK, level, dayKey, streakOf, onRun } from "./progress.js";
+import { UNLOCK, level, dayKey, streakOf, onRun, state as progState, noteMove, flushMoves, weakMoves } from "./progress.js";
+import { dailyPlan, tierFor, speedSuggestion, practicePlan, favouriteSong, SPEEDS } from "./smart.js";
 import "./progress-ui.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
@@ -39,6 +41,7 @@ const TRACKS = [ // original patterns synthesized live (Web Audio), CC0 — no s
   { id: "turbo", name: "Turbo Hype", bpm: 128, bass: [0, 7, 5, 3], root: 43, wave: "square", arp: [12, 7, 12, 15, 12, 7, 10, 7], lvl: UNLOCK.turbo },
 ];
 const trackLocked = (t) => !!t.lvl && level() < t.lvl;
+let runSpd = 1; const speedPref = () => { const v = +localStorage.getItem("dc.speed"); return SPEEDS.includes(v) ? v : 1; }; const BPM = () => track.bpm * runSpd;
 let ac = null, master = null, sfxBus = null, musicBus = null, padBus = null, recDest = null, seqTimer = null, nextBeatT = 0, beatN = 0, track = TRACKS[0], noiseBuf = null;
 const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const lvl = (v, d) => Math.max(0, Math.min(100, v ?? d)) / 100;
@@ -62,7 +65,7 @@ function noise(t, dur, type, freq, vol, out = musicBus) { const s = ac.createBuf
 const hat = (t, vol) => noise(t, 0.05, "highpass", 7500, vol);
 const clap = (t) => { for (const k of [0, 0.012, 0.024]) noise(t + k, 0.16, "bandpass", 1500, 0.32); };
 function schedule() {
-  const spb = 60 / track.bpm, arp = track.arp || [0, 7, 12, 7];
+  const spb = 60 / BPM(), arp = track.arp || [0, 7, 12, 7];
   while (nextBeatT < ac.currentTime + 0.2) {
     const t = nextBeatT, b = beatN % 4;
     if (beatN < 4) { kick(t, 0.6); hat(t + spb / 2, 0.18); blip(t, hz(b === 3 ? 88 : 81), 0.12, "square", 0.12, master); if (b === 3) noise(t, spb, "highpass", 2000, 0.12); nextBeatT += spb; beatN++; continue; } // count-in cue
@@ -84,7 +87,8 @@ function musicStop() { clearInterval(seqTimer); seqTimer = null; }
 // ---- daily challenge: date-seeded routine + track ----
 const today = dayKey(); // device-local date: the daily routine changes at your local midnight
 function rng(seed) { let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; }
-function dailyRoutine() { const r = rng(today); const order = MOVES.map((_, i) => i).slice(1).sort(() => r() - 0.5).slice(0, 8); return { routine: [0, ...order], track: TRACKS[Math.floor(r() * 3)] }; }
+function dailyTier() { let o = {}; try { o = JSON.parse(localStorage.getItem("dc.dtier") || "{}"); } catch {} if (o.d !== today) { o = { d: today, t: tierFor(level()) }; try { localStorage.setItem("dc.dtier", JSON.stringify(o)); } catch {} } return o.t; } // tier fixed for the day
+function dailyRoutine() { const p = dailyPlan(today, dailyTier(), MOVES.length, 4); return { routine: p.routine, track: TRACKS[p.trackIdx], goal: p.goal, tier: p.tier }; } // generated from the date + your level, no server
 const FULL = MOVES.map((_, i) => i);
 let routine = FULL, mode = "free";
 function coachAt(t, bpm) {
@@ -125,7 +129,7 @@ const best = () => JSON.parse(localStorage.getItem("dc.best") || "{}");
 function weekCount() { const b = best(), d = new Date(); let c = 0; for (let i = 0; i < 7; i++) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() - i); if (b[dayKey(x)] != null) c++; } return c; }
 function untilTomorrow() { const n = new Date(), m = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1); const mins = Math.max(0, Math.round((m - n) / 6e4)); return `${Math.floor(mins / 60)}h ${mins % 60}m`; }
 setInterval(() => { const e = document.getElementById("dcCount"); if (e) e.textContent = untilTomorrow(); }, 60000);
-function showDaily() { const d = dailyRoutine(), b = best()[today], st = streak(), wk = weekCount(); $("#daily").innerHTML = `<b class="big">🏆 Routine of the Day</b><div>${d.track.name} · ${d.routine.length} moves · 🔥 ${st}-day streak${b ? ` · best today <b>${b}%</b>` : ""}</div><div class="note" style="color:var(--mut)">${b ? "✅ Done for today! Come back tomorrow for a new routine" : st ? "Dance today to keep your streak alive" : "Start a streak today"} · new routine in <b id="dcCount">${untilTomorrow()}</b> · weekly goal ${Math.min(wk, 5)}/5 ${wk >= 5 ? "🎉" : ""}</div><div style="margin-top:6px">${d.routine.slice(1).map((i) => `<span class="chip">${MOVES[i].name}</span>`).join("")}</div>`; }
+function showDaily() { const d = dailyRoutine(), b = best()[today], st = streak(), wk = weekCount(); $("#daily").innerHTML = `<b class="big">🏆 Routine of the Day</b><div>${d.track.name} · ${d.routine.length - 1} moves · 🎯 goal ${d.goal}% · 🔥 ${st}-day streak${b ? ` · best today <b>${b}%</b>` : ""}</div><div class="note" style="color:var(--mut)">${b ? "✅ Done for today! Come back tomorrow for a new routine" : st ? "Dance today to keep your streak alive" : "Start a streak today"} · new routine in <b id="dcCount">${untilTomorrow()}</b> · weekly goal ${Math.min(wk, 5)}/5 ${wk >= 5 ? "🎉" : ""}</div><div style="margin-top:6px">${d.routine.slice(1).map((i) => `<span class="chip">${MOVES[i].name}</span>`).join("")}</div>`; }
 function streak() { return streakOf(new Set(Object.keys(best())), new Date()).streak; } // forgiving: one missed day is forgiven per 7 days; today not yet played doesn't break it
 showDaily();
 $("#dailyBtn").onclick = () => { const d = dailyRoutine(); routine = d.routine; track = d.track; $("#track").value = track.id; mode = "daily"; status("Daily challenge loaded. Turn on camera, then Start."); };
@@ -146,14 +150,14 @@ $("#fileIn").onchange = async (e) => {
 
 function start() {
   paused = false; document.body.classList.remove("paused");
-  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; playing = true; $("#result").hidden = true; ghostStart(runKey()); coachReset();
-  if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000 + (4 * 60000) / track.bpm; /* 4-beat count-in */ }
-  $("#startBtn").textContent = "■ Stop"; document.body.style.setProperty("--spb", (60 / track.bpm).toFixed(3) + "s"); document.body.classList.add("dancing");
+  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || refVideo ? 1 : speedPref(); ghostStart(runKey()); coachReset(); liveReset();
+  if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000 + (4 * 60000) / BPM(); /* 4-beat count-in */ }
+  $("#startBtn").textContent = "■ Stop"; document.body.style.setProperty("--spb", (60 / BPM()).toFixed(3) + "s"); document.body.classList.add("dancing");
 }
 let lastResult = null, lastBoard = null;
 let combo = 0, maxCombo = 0, judged = {}, beatI = -1, beatS = 0, beatN2 = 0, hit = null; // per-beat judgement + combo
 const noFx = () => RM.matches || document.documentElement.classList.contains("reduce");
-const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : "song-" + track.id;
+const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : mode === "practice" ? "practice" : "song-" + track.id + (runSpd !== 1 ? "@" + runSpd : "");
 window.dcGhostOn = () => S.ghost !== false;
 initTips(); initTV(moveFocus); document.documentElement.classList.toggle("big", !!S.big); document.getElementById("replayOb")?.addEventListener("click", () => { const ob = document.getElementById("onboard"); new MutationObserver((m, o) => { if (ob.hidden) { o.disconnect(); setTimeout(showTips, 400); } }).observe(ob, { attributes: true, attributeFilter: ["hidden"] }); });
 function toastMsg(t) { const e = document.getElementById("padToast"); if (!e) return; e.textContent = t; e.classList.add("show"); clearTimeout(toastMsg.t); toastMsg.t = setTimeout(() => e.classList.remove("show"), 2600); }
@@ -195,6 +199,32 @@ if (!isNative) addEventListener("load", () => setTimeout(() => {
   Object.assign(sc.dataset, { site: "dancecoach", game: "dancecoach", mode: "kids", position: "bottom-left" });
   sc.onload = () => { buddyCtx(); setInterval(buddyCtx, 5000); }; document.head.append(sc);
 }, 1500));
+// ---- Smart coach: suggestions from your recent runs (shown, never applied silently) + practice routine ----
+const OPEN_TRACKS = () => TRACKS.filter((t) => !trackLocked(t)).map((t) => t.id);
+function smartBox() {
+  const h = progState().hist || [], sug = mode === "daily" ? null : speedSuggestion(h, runSpd), weak = weakMoves(4), snooze = +localStorage.getItem("dc.smartSnooze") || 0, songs = progState().songs || 0;
+  const parts = [];
+  if (sug && songs >= snooze) parts.push(`<p>${sug.why === "up" ? `You've aced your last runs. Ready for a challenge? Try the song at <b>${sug.speed}×</b> speed.` : `Those moves are tricky. Practise at <b>${sug.speed}×</b> speed, then speed back up.`}</p><div class="row grow"><button class="b-sky" data-spd="${sug.speed}">${sug.why === "up" ? "⏩" : "⏪"} Use ${sug.speed}× speed</button><button class="b-soft" id="smartNo">Not now</button></div>`);
+  if (weak.length >= 3 && mode !== "practice") parts.push(`<p>Your trickiest moves lately: ${weak.map((i) => `<span class="chip">${MOVES[i].name}</span>`).join("")}</p><button class="b-gold" id="smartPractice">🎯 Load practice routine</button>`);
+  if (!parts.length) return;
+  $("#result").insertAdjacentHTML("beforeend", `<section class="tipsBox" id="smartBox" aria-label="Smart coach"><h3>💡 Smart coach</h3>${parts.join("")}</section>`);
+  const box = $("#smartBox");
+  box.onclick = (e) => { const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.spd) { localStorage.setItem("dc.speed", b.dataset.spd); const ss = document.getElementById("speedSel"); if (ss) ss.value = b.dataset.spd; b.textContent = `✓ Speed set to ${b.dataset.spd}× (change it in Settings)`; b.disabled = true; }
+    if (b.id === "smartNo") { localStorage.setItem("dc.smartSnooze", String(songs + 3)); b.textContent = "OK, I'll ask again later"; b.disabled = true; }
+    if (b.id === "smartPractice") { loadPractice(); b.textContent = "✓ Practice routine loaded. Press Start"; b.disabled = true; } };
+}
+function loadPractice() {
+  const weak = weakMoves(4); if (weak.length < 3) return false;
+  routine = practicePlan(weak, MOVES.length, today); mode = "practice";
+  const fav = favouriteSong(progState().hist, OPEN_TRACKS()); if (fav) { track = TRACKS.find((t) => t.id === fav) || track; $("#track").value = track.id; }
+  status(`🎯 Practice routine: your trickiest moves plus two more, to ${track.name}. Turn on the camera, then Start.`); return true;
+}
+function syncPractice() { const b = document.getElementById("practiceBtn"); if (b) b.hidden = weakMoves(4).length < 3; }
+document.getElementById("practiceBtn")?.addEventListener("click", () => { if (!playing) loadPractice(); });
+addEventListener("dc-prog", syncPractice); syncPractice();
+window.dcSmart = { dailyRoutine: () => dailyRoutine(), speed: () => runSpd };
+
 function stop() {
   const wasPlaying = playing;
   if (paused) { paused = false; document.body.classList.remove("paused"); ac?.resume(); window.speechSynthesis?.resume(); status("Stopped."); }
@@ -208,7 +238,8 @@ function stop() {
     $("#shareBtn").onclick = () => share();
     coins.onSongEnd({ stars, daily: mode === "daily", perfect, streak: streak() });
     if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); }
-    try { const xo = onRun({ pct, stars, perfect, combo: maxCombo, daily: mode === "daily", trackId: refVideo ? "" : track.id, streak: streak(), goalMet: false }); lastResult.xp = xo.xp; window.dcProgressResult?.(xo, $("#result")); } catch {} }
+    flushMoves(); const goalMet = mode === "daily" && pct >= dailyRoutine().goal; if (mode === "daily") $("#result").insertAdjacentHTML("beforeend", `<div class="note">🎯 Daily goal ${dailyRoutine().goal}%: ${goalMet ? "reached! +25 XP" : "not yet. Try again any time today"}</div>`);
+    try { const xo = onRun({ pct, stars, perfect, combo: maxCombo, daily: mode === "daily", trackId: refVideo ? "" : track.id, streak: streak(), goalMet, speed: runSpd }); lastResult.xp = xo.xp; window.dcProgressResult?.(xo, $("#result")); } catch {} if (!refVideo) smartBox(); }
   else if (wasPlaying) status(stream ? "Not enough moves seen to score — step back so your whole body shows, then try again." : "Turn on the camera to get a score.");
   if (rec && rec.state === "recording") rec.stop();
 }
@@ -258,7 +289,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   if (!playing && !stream && !refVideo && !parts.length && now > victoryUntil) { if (now - lastIdle < 120) return; lastIdle = now; } // idle: ~8 fps, saves battery + main thread
   window.dcPerf.frames++; if (lastF) fpsE = fpsE * 0.95 + (1000 / Math.max(1, now - lastF)) * 0.05; lastF = now;
-  const t = playing ? (refVideo ? refVideo.currentTime : ((paused ? pausedAt : now) - t0) / 1000) : 0, bpm = track.bpm;
+  const t = playing ? (refVideo ? refVideo.currentTime : ((paused ? pausedAt : now) - t0) / 1000) : 0, bpm = BPM();
   if (playing && !paused && !refVideo && t >= songLen(bpm)) { stop(); return; }
   if (playing && !paused && refVideo && refVideo.ended) { stop(); return; }
   const c = coachAt(t, bpm); let ref = c.pose, refV;
@@ -283,7 +314,7 @@ function frame(now) {
   if (playing && !paused && !refVideo && t < 0) { const left = Math.ceil((-t * bpm) / 60); const ph = noFx() ? 0 : ((-t * bpm) / 60) % 1; g.save(); g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(W, H) * (0.28 + ph * 0.08))}px system-ui`; g.fillStyle = left <= 1 ? "#B8FF00" : "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 16; g.fillText(left > 3 ? "Ready?" : String(left), W / 2, H / 2 + Math.min(W, H) * 0.1); g.font = "800 28px system-ui"; g.fillStyle = "#fff"; g.fillText("Get in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); g.restore(); }
   if (playing && !paused && lastPose && stream && (refVideo || t >= 0)) {
     const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
-    if (u && !refVideo) { const lag = 30 / bpm; coachAdd(u, ref, refV, t, songLen(bpm), coachAt(t - lag, bpm).pose, coachAt(t + lag, bpm).pose); }
+    if (u && !refVideo) { const lag = 30 / bpm; coachAdd(u, ref, refV, t, songLen(bpm), coachAt(t - lag, bpm).pose, coachAt(t + lag, bpm).pose); if (S.liveTips !== false) { const cue = coachLive(u, ref, now); if (cue) status("💡 " + cue); } if (s0 != null && t >= 0) noteMove(c.idx, s0); }
     if (s != null && !refVideo) { const bI = Math.floor((t * bpm) / 60); if (bI !== beatI) { if (beatI >= 0 && beatN2) { const av = beatS / beatN2, j = av > 0.8 ? "Perfect" : av > 0.65 ? "Great" : av > 0.5 ? "Good" : "Miss"; judged[j]++; combo = j === "Miss" ? 0 : combo + 1; maxCombo = Math.max(maxCombo, combo); hit = { j, at: now, combo }; hitSound(j); } beatI = bI; beatS = beatN2 = 0; } beatS += s; beatN2++; }
     if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
   }

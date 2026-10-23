@@ -29,3 +29,18 @@ export function coachHTML(r) {
   if (!r) return ""; const name = { easy: "Easy", normal: "Normal", hard: "Hard" };
   return `<section class="tipsBox" aria-label="Coach tips"><h3>💡 Coach tips</h3><ul>${r.tips.map((t) => `<li>${t}</li>`).join("")}</ul>${r.sug ? `<button id="diffSug" class="b-sky" data-d="${r.sug}">Try ${name[r.sug]} next time</button>` : ""}</section>`;
 }
+
+// Live form cues during a song: a short tip at most every 7 s about the body part that is furthest off (on-device only).
+let lv = null;
+export function liveReset() { lv = { err: new Float32Array(8), low: new Float32Array(8), n: 0, last: performance.now() }; }
+export function coachLive(u, ref, now) {
+  if (!lv || !u || !ref) return null;
+  for (let i = 0; i < 8; i++) { if (u.v[i] < 0.4) continue; lv.err[i] = lv.err[i] * 0.96 + Math.abs(wrap(u.a[i] - ref[i])) * 0.04; lv.low[i] = lv.low[i] * 0.96 + (Math.abs(ref[i]) - Math.abs(u.a[i])) * 0.04; }
+  if (++lv.n < 45 || now - lv.last < 7000) return null;
+  let w = 0; for (let i = 1; i < 8; i++) if (lv.err[i] > lv.err[w]) w = i;
+  if (lv.err[w] < 28) return null; lv.last = now;
+  if ((w === 0 || w === 2) && lv.low[w] > 18) return `Coach tip: lift your ${PART[w]} higher`;
+  if (w === 1 || w === 3) return `Coach tip: match the coach with your ${PART[w]}`;
+  if (w >= 4) return `Coach tip: watch your ${w < 6 ? "left" : "right"} leg, copy the coach's step`;
+  return `Coach tip: line up your ${PART[w]} with the coach`;
+}

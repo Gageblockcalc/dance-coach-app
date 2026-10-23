@@ -26,7 +26,7 @@ body.dancing .hide-dance{display:none}.pause-only{display:none!important}body.pa
 @keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 .sheet h2{margin:0 0 8px;font-size:22px;outline:none}.sheet p,.sheet li{color:var(--mut)}
 .switch{width:100%;justify-content:space-between;background:var(--card2);color:var(--txt);text-align:left;padding:12px 16px;min-height:64px;margin:6px 0;font-weight:700}
-.lookRow{margin:10px 0}.lookRow>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.lookChip{flex:1 1 84px;min-height:44px;padding:6px 8px;white-space:nowrap;background:var(--card2);color:var(--txt);border:2px solid var(--c);font-weight:700}.lookChip[aria-pressed=true]{background:var(--c);color:#120a22}
+.lookRow{margin:10px 0}.lookRow>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.lookChip{flex:1 1 84px;min-height:44px;padding:6px 8px;white-space:nowrap;background:var(--card2);color:var(--txt);border:2px solid var(--c);font-weight:700}.lookChip[aria-pressed=true]{background:var(--c);color:#120a22}.lookChip[disabled]{white-space:normal;opacity:.6;cursor:not-allowed}
 .switch small{display:block;font-weight:400;color:var(--mut);font-size:13px;margin-top:3px}.switch span{display:block}
 .switch i{flex:0 0 52px;height:30px;border-radius:99px;background:#4a3d6e;position:relative;transition:background .2s}.switch i::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s}
 .switch[aria-checked=true] i{background:var(--lime)}.switch[aria-checked=true] i::after{left:25px}
@@ -65,7 +65,7 @@ html.calm *{animation:none!important;transition:none!important}html.hc .sheet>di
 <label class="row hide-dance"><span style="color:var(--mut)" data-i18n="song">Song</span><select id="track" aria-label="Song" style="flex:1"></select></label>
 <div class="row grow"><button id="camBtn" data-i18n="cam">📷 Turn on camera</button><button id="startBtn" class="b-gold" data-i18n="start">▶ Start</button><button id="pauseCtl" class="b-sky pause-only" onclick="window.dcShowControls&&window.dcShowControls(5000)">❔ Controls</button></div>
 <div class="row grow"><button id="recBtn" class="b-pink" data-i18n="rec">⏺ Record clip</button><a id="dl" class="btn b-sky" hidden data-i18n="dl">⬇ Download</a><button id="shareDanceBtn" class="b-gold" hidden>📤 Share my dance</button><button id="shareClipBtn" class="b-soft" hidden>📣 Send clip</button><label class="btn b-sky hide-dance" tabindex="0" data-i18n="myvid">🎞 Use my video<input id="fileIn" type="file" accept="video/*" hidden></label></div>
-<div class="row grow hide-dance" id="progRow"><button id="progBtn" class="b-gold">⭐ Level 1</button></div>
+<div class="row grow hide-dance" id="progRow"><button id="progBtn" class="b-gold">⭐ Level 1</button><button id="practiceBtn" class="b-soft" hidden>🎯 Practice routine</button></div>
 <div class="row grow hide-dance" id="m2eRow"><button id="m2eBtn" class="b-sky" hidden>🏃 Move to Earn</button></div>
 <div id="shareBox" class="hide-dance"><p id="shareMsg" class="note" role="status" aria-live="polite"></p><div id="shareAuth" class="row grow" hidden><button id="signInBtn" class="b-sky">🔑 Sign in with passkey</button><button id="signUpBtn" class="b-soft">✨ Create free account</button></div></div>
 <div id="status" class="panel" role="status" aria-live="polite" data-i18n="status">Your camera stays on this device — nothing is uploaded.</div>
@@ -87,6 +87,7 @@ html.calm *{animation:none!important;transition:none!important}html.hc .sheet>di
  <div class="row" style="justify-content:space-between"><h2 tabindex="-1" data-i18n="settings">Settings</h2><button class="icon" data-close aria-label="Close settings">✕</button></div>
  <label class="row"><span data-i18n="lang">Language</span><select id="langSel" aria-label="Language" style="flex:1"></select></label>
  <label class="row"><span>Difficulty</span><select id="diffSel" aria-label="Difficulty" style="flex:1"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select></label>
+ <label class="row"><span>Song speed</span><select id="speedSel" aria-label="Song speed" style="flex:1"><option value="0.8">0.8× (practice)</option><option value="0.9">0.9×</option><option value="1">1× (normal)</option><option value="1.1">1.1×</option><option value="1.2">1.2× (challenge)</option></select></label>
  <label class="row"><span>Quality</span><select id="qualSel" aria-label="Quality" style="flex:1"><option value="auto">Auto</option><option value="low">Low (battery saver)</option><option value="high">High</option></select></label>
  <div id="settingsList"></div>
  <div id="shareRow" hidden><button id="shareToggle" class="switch" role="switch" aria-checked="false"><span><b>Grown-up sharing (13+)</b><small>Lets you post a clip to the public Community dances gallery after you record one. Off by default; nothing is posted unless you tap Share and confirm.</small></span><i></i></button></div>

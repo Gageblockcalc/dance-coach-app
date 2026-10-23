@@ -55,9 +55,9 @@ export function onMoveCoins(todayCoins, day) {
   s.m2e.n += d; out.xp = d * 2; award("mover", out); addXp(out.xp, out); save(); emit("m2e"); return out;
 }
 /** Per-move accuracy for the "Practice" routine: running average similarity per move index. */
-export function noteMove(idx, sim) { const s = load(), m = s.moves[idx] || (s.moves[idx] = [0, 0]); m[0] += sim; m[1]++; }
+export function noteMove(idx, sim) { const s = load(), m = s.moves[idx] || (s.moves[idx] = [0, 0]); m[0] += sim; m[1]++; if (m[1] > 600) { m[0] /= 2; m[1] /= 2; } } // recent runs weigh more
 export function flushMoves() { save(); }
-export function weakMoves(n = 4) { const m = load().moves, rows = Object.keys(m).filter((k) => m[k][1] >= 15).map((k) => [+k, m[k][0] / m[k][1]]); rows.sort((a, b) => a[1] - b[1]); return rows.slice(0, n).map((r) => r[0]); }
+export function weakMoves(n = 4) { const m = load().moves, rows = Object.keys(m).filter((k) => m[k][1] >= 40 && +k > 0).map((k) => [+k, m[k][0] / m[k][1]]); rows.sort((a, b) => a[1] - b[1]); return rows.slice(0, n).map((r) => r[0]); }
 export function resetProgress() { st = blank(); try { localStorage.removeItem(KEY); } catch {} emit("reset"); }
 /** Streak with a gentle rule: a missed day is forgiven once per 7 played days. `days` = Set of "YYYY-MM-DD" played. Today not yet played does not break it. */
 export function streakOf(days, now = new Date()) {

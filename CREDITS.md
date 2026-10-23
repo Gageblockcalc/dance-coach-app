@@ -43,6 +43,9 @@ Club, Festival, Rooftop and Halloween stages (backdrops, spotlights, lasers, haz
 ## Progress, levels and unlocks
 XP, levels, badges, the forgiving streak and the three level-reward songs (Candy Pop, Midnight Drive, Turbo Hype, synthesized live with Web Audio from the same original note patterns as the other songs), the Aurora and Sunrise stage palettes and the Gold Star, Ember and Midnight outfit tints are original and made for this app (`progress.js`, `progress-ui.js`). Progress is stored only on the device (`dc.prog`).
 
+## Smart coach
+Live coach tips, speed suggestions, practice routines and the generated Daily challenge (`smart.js`, `coach.js`) are original code. They run on the device from local scores only; no network service is used.
+
 ## Accessibility colors
 The color-blind friendly hit colors use the Okabe & Ito palette ("Color Universal Design", 2008), a published set of color values, which are facts and free to use. The high-contrast theme is original CSS.
 
