@@ -9,11 +9,11 @@ const P = (native && Cap.Plugins) || {};
 export const isNative = native;
 
 // ---- settings (localStorage only, never leaves the device) ----
-const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true, m2e: false, ghost: true, coach3d: true, music: true, musicVol: 70, sfxVol: 80, voiceVol: 100, banter: true, smack: true, big: /\b(TV|AFT[A-Z0-9]*|BRAVIA|GoogleTV|SMART-TV|Tizen|Web0S|CrKey)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).get("tv") === "1" };
+const DEF = { sounds: true, voice: false, haptics: true, rumble: true, reminder: false, remindAt: "17:00", reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, particles: true, calm: false, hc: false, cb: false, m2e: false, ghost: true, coach3d: true, music: true, musicVol: 70, sfxVol: 80, voiceVol: 100, banter: true, smack: true, big: /\b(TV|AFT[A-Z0-9]*|BRAVIA|GoogleTV|SMART-TV|Tizen|Web0S|CrKey)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).get("tv") === "1" };
 export const S = Object.assign({}, DEF, JSON.parse(localStorage.getItem("dc.settings") || "{}"));
 if (localStorage.getItem("dc.voice") === "1") S.voice = true; // migrate old toggle
 const save = () => localStorage.setItem("dc.settings", JSON.stringify(S));
-const applyMotion = () => { document.documentElement.classList.toggle("reduce", !!S.reduced); document.documentElement.classList.toggle("noparticles", S.particles === false); };
+const applyMotion = () => { document.documentElement.classList.toggle("reduce", !!S.reduced); document.documentElement.classList.toggle("noparticles", S.particles === false || S.calm === true); document.documentElement.classList.toggle("calm", S.calm === true); document.documentElement.classList.toggle("hc", S.hc === true); document.documentElement.classList.toggle("cb", S.cb === true); };
 applyMotion();
 
 // ---- sound effects: several CC0 variants per kind, one picked at random ----
@@ -34,6 +34,7 @@ export async function sfx(kind, vol = 0.8) {
 // ---- haptics: native Haptics plugin in the app, Vibration API on web ----
 export function haptic(kind = "light") {
   if (!S.haptics) return;
+  if (document.documentElement.classList.contains("reduce") && kind !== "success") return; // Reduce motion: only the important buzzes
   try {
     if (P.Haptics) { kind === "success" ? P.Haptics.notification({ type: "SUCCESS" }) : P.Haptics.impact({ style: kind === "heavy" ? "HEAVY" : kind === "medium" ? "MEDIUM" : "LIGHT" }); }
     else navigator.vibrate?.(kind === "success" ? [30, 60, 30] : kind === "heavy" ? 40 : 15);
@@ -74,7 +75,7 @@ const lookHTML = () => LOOKS.filter((l) => !l.silly || isOwned(l.id)).map((l) =>
 function refreshLooks() { const r = $("#lookRow > div"); if (r) r.innerHTML = lookHTML(); const t = document.querySelector('[aria-label="Dance stage"] > div'); if (t) t.innerHTML = stageHTML(); }
 
 function settings() {
-  const rows = [["music", "Music", "Original beats for every song"], ["sounds", "Sound effects", "Clicks, cheers, hit sounds and stingers"], ["banter", "Coach jokes & commentary", "Funny lines from Coach Disco Dan. Always clean and family-friendly."], ["smack", "Playful trash talk", "Friendly teasing about the beat and the disco ball, never about real people. Clean. Turn off any time."], ["voice", "Coach voice", "Coach Disco Dan reads his lines out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"], ["coach3d", "3D coach", "Animated 3D coach (2D on Low quality or slower devices)"], ["ghost", "Ghost replay", "Faint outline of your best run on each song"], ["big", "Large screen mode", "Bigger buttons and text for TVs — arrow keys or remote to move"]];
+  const rows = [["music", "Music", "Original beats for every song"], ["sounds", "Sound effects", "Clicks, cheers, hit sounds and stingers"], ["banter", "Coach jokes & commentary", "Funny lines from Coach Disco Dan. Always clean and family-friendly."], ["smack", "Playful trash talk", "Friendly teasing about the beat and the disco ball, never about real people. Clean. Turn off any time."], ["voice", "Coach voice", "Coach Disco Dan reads his lines out loud"], ["haptics", "Haptics", "Little buzzes on great moves"], ["rumble", "Controller rumble", "Gamepad vibration on great moves"], ["reduced", "Reduce motion", "Fewer animations"], ["particles", "Sparkle effects", "Confetti bursts on great moves"], ["calm", "Reduce flashing", "No beat flashes or strobing lights; the stage stays still. Good for light sensitivity."], ["hc", "High contrast", "Brighter text and stronger outlines"], ["cb", "Color-blind friendly colors", "Hit colors that stay clear for every kind of color vision. Shapes (★ ◆ ● ✕) always show too."], ["coach3d", "3D coach", "Animated 3D coach (2D on Low quality or slower devices)"], ["ghost", "Ghost replay", "Faint outline of your best run on each song"], ["big", "Large screen mode", "Bigger buttons and text for TVs — arrow keys or remote to move"]];
   rows.push(["m2e", "Move to Earn (optional)", "Earn silly-outfit coins for steps, shakes and squats. Off by default; nothing is counted until you tap Start inside it. No location, nothing uploaded."]);
   if (native) rows.push(["reminder", "Daily reminder", "A gentle nudge for the daily challenge"]);
   const box = $("#settingsList");
@@ -88,7 +89,7 @@ function settings() {
     const b = e.target.closest(".switch"); if (!b) return; const k = b.dataset.k; S[k] = !S[k];
     if (k === "reminder") { const ok = await setReminder(S[k]); if (!ok && S[k]) { S[k] = false; alert("Notifications are blocked. You can allow them in Android Settings › Apps › Dance Coach."); } }
     if (k === "voice" && !S.voice) window.speechSynthesis?.cancel();
-    if (k === "reduced" || k === "particles") applyMotion(); if (k === "big") document.documentElement.classList.toggle("big", !!S.big);
+    if (k === "reduced" || k === "particles" || k === "calm" || k === "hc" || k === "cb") applyMotion(); if (k === "big") document.documentElement.classList.toggle("big", !!S.big);
     b.setAttribute("aria-checked", !!S[k]); save(); haptic(); window.dispatchEvent(new CustomEvent("dc-settings", { detail: k }));
   };
   addEventListener("dc-m2e", refreshLooks); addEventListener("dc-prog", refreshLooks);
