@@ -1,7 +1,7 @@
 // Dance Coach account API (same origin, Cloudflare Pages Functions + D1). Optional passkey sign-in to sync progress.
 // Stores only: random account id, passkey public keys, hashed session tokens, the progress blob. No email, no names.
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from "@simplewebauthn/server";
-import { mergeBlob } from "../../sync-merge.js";
+import { mergeBlob, clean } from "../../sync-merge.js";
 
 const SESSION_S = 7 * 86400, COOKIE = "__Host-dc_s", MAX_BLOB = 65536;
 const LIMITS = { auth: [30, 600], read: [120, 600], write: [120, 600], acct: [60, 600] }; // [max, window seconds]
@@ -94,7 +94,7 @@ export async function onRequest({ request: req, env, params }) {
       const a = await db.prepare("SELECT blob, updated FROM accounts WHERE id = ?").bind(s.uid).first(); if (!a) return json({ signedIn: false }, 200, { "Set-Cookie": cookieClear });
       const extra = s.exp - Date.now() < (SESSION_S * 1000) / 2 ? (await db.prepare("UPDATE sessions SET exp = ? WHERE h = ?").bind(Date.now() + SESSION_S * 1000, s.h).run(), { "Set-Cookie": cookieSet(s.tok) }) : {};
       const n = await db.prepare("SELECT COUNT(*) AS n FROM creds WHERE uid = ?").bind(s.uid).first();
-      return json({ signedIn: true, account: s.uid.slice(0, 6), passkeys: n.n, updated: a.updated, progress: blobOf(a) }, 200, extra);
+      return json({ signedIn: true, account: s.uid.slice(0, 6), passkeys: n.n, updated: a.updated, progress: clean(blobOf(a)) }, 200, extra);
     }
     if (path === "/progress" && method === "PUT") {
       if (!s) return json({ error: "signed_out" }, 401);
