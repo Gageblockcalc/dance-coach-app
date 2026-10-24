@@ -12,3 +12,4 @@ keystore.properties
 *.properties.local
 *.aab
 android/keystore.properties
+.wrangler/

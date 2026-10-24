@@ -24,6 +24,7 @@ import "./m2e-ui.js";
 import { UNLOCK, level, dayKey, streakOf, onRun, state as progState, noteMove, flushMoves, weakMoves } from "./progress.js";
 import { dailyPlan, tierFor, speedSuggestion, practicePlan, favouriteSong, SPEEDS } from "./smart.js";
 import "./progress-ui.js";
+import "./account.js";
 const TV = "0.10.14";
 const CDN = new URL("./vendor", location.href).href.replace(/\/$/, ""); // bundled locally (works offline + in the Android app)
 const MODEL = new URL("./vendor/pose_landmarker_lite.task", location.href).href;

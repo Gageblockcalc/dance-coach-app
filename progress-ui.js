@@ -38,9 +38,9 @@ function render() {
   <h3>Badges ${got}/${BADGES.length}</h3><div class="pgBadges">${BADGES.map((b) => { const on = !!s.badges[b.id]; return `<div class="pgB${on ? "" : " off"}" role="group" aria-label="${esc(b.name)}: ${esc(b.desc)}. ${on ? "Earned" : "Not yet"}"><b>${b.icon} ${esc(b.name)}</b><span>${esc(b.desc)}</span></div>`; }).join("")}</div>
   <h3>Personal bests</h3>${bests()}
   <div class="row grow" style="margin-top:12px"><button id="pgInvite" class="b-sky">📤 Invite a friend</button><button id="pgClose" class="b-soft">Close</button></div>
-  <p id="pgMsg" class="note" role="status"></p><p class="note"><button id="pgReset" class="b-soft" style="font-size:13px;padding:6px 10px">Reset progress</button> Everything here is saved only on this device.</p>`;
+  <p id="pgMsg" class="note" role="status"></p><div id="pgAcct"></div><p class="note"><button id="pgReset" class="b-soft" style="font-size:13px;padding:6px 10px">Reset progress</button> Everything here is saved only on this device.</p>`;
 }
-function open() { render(); sheet.hidden = false; sheet.querySelector("h2")?.focus(); }
+function open() { render(); window.dcAccountRender?.(); sheet.hidden = false; sheet.querySelector("h2")?.focus(); }
 function close() { sheet.hidden = true; btn.focus(); }
 btn.onclick = open;
 sheet.addEventListener("click", async (e) => {

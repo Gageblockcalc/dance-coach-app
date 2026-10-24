@@ -40,6 +40,9 @@ CC0 = https://creativecommons.org/publicdomain/zero/1.0/ . Attribution is not re
 ## Dance stages
 Club, Festival, Rooftop and Halloween stages (backdrops, spotlights, lasers, haze) are drawn procedurally in code. Original, no external assets.
 
+## Optional passkey sign-in
+[SimpleWebAuthn](https://github.com/MasterKale/SimpleWebAuthn) (@simplewebauthn/server and @simplewebauthn/browser 13.x), MIT License, © Matthew Miller. Browser bundle vendored at `vendor/simplewebauthn-browser.umd.min.js`; server package bundled into the Pages Function.
+
 ## Seasonal themes
 Seasonal stage palettes and decor (drawn in code), outfit color tints, seasonal lines and the nine seasonal tunes (synth pattern data played live with Web Audio) are original to Dance Coach, CC0. No samples or third-party assets.
 

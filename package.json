@@ -14,7 +14,9 @@
     "@capacitor/haptics": "^7.0.5",
     "@capacitor/local-notifications": "^7.0.7",
     "@capacitor/splash-screen": "^7.0.5",
-    "@capacitor/status-bar": "^7.0.6"
+    "@capacitor/status-bar": "^7.0.6",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.3"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

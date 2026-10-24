@@ -1,0 +1,15 @@
+# Cloudflare Pages config: static site in dist/ + /api Pages Functions (optional passkey sign-in) backed by D1.
+name = "dancecoach"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dancecoach-db"
+database_id = "0d2eea98-a6ed-42f0-98a0-44f7d975bef0"
+
+[env.preview]
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "dancecoach-db-preview"
+database_id = "c02e6cc8-09a5-42d0-aa47-7cb30a8ba74a"

@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 rm -rf dist && mkdir -p dist
-cp -r robots.txt sitemap.xml og.png index.html i18n.js coins.js seasons.js share.js shop.js controls.js version.js whats-new.html privacy.html app.js ui.js gamepad.js moves.js features.js coach.js coach3d.js stages.js banter.js progress.js progress-ui.js smart.js m2e.js m2e-ui.js m2e-source.js move-to-earn.js m2e-pose.js sw.js manifest.webmanifest icon-192.png icon-512.png CREDITS.md _headers sfx vendor dist/
+cp -r robots.txt sitemap.xml og.png index.html i18n.js coins.js seasons.js share.js shop.js controls.js version.js whats-new.html privacy.html app.js ui.js gamepad.js moves.js features.js coach.js coach3d.js stages.js banter.js progress.js progress-ui.js smart.js account.js sync-merge.js m2e.js m2e-ui.js m2e-source.js move-to-earn.js m2e-pose.js sw.js manifest.webmanifest icon-192.png icon-512.png CREDITS.md _headers sfx vendor dist/
 # Stamp the version label into static HTML (visible without JS)
 V=$(sed -E 's/.*DC_VERSION="([^"]*)".*/\1/' version.js)
 for f in dist/index.html dist/privacy.html dist/whats-new.html; do python3 - "$f" "$V" <<'PY'
