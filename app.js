@@ -63,6 +63,10 @@ function blip(t, f, dur, type, vol, out = musicBus, cut = 0) { const o = ac.crea
 function kick(t, v = 0.9) { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.24); o.connect(g).connect(musicBus); o.start(t); o.stop(t + 0.26);
   padBus.gain.cancelScheduledValues(t); padBus.gain.setValueAtTime(0.25, t); padBus.gain.linearRampToValueAtTime(1, t + 0.22); } // sidechain pump
 function noise(t, dur, type, freq, vol, out = musicBus) { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noiseBuf; f.type = type; f.frequency.value = freq; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + dur + 0.02); }
+function longNoise(t, dur, type, f0, f1, vol) { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noiseBuf; s.loop = true; f.type = type; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur); return [s, f, g]; }
+function riser(t, dur) { const [s, f, g] = longNoise(t, dur, "bandpass", 400, 6000); f.Q.value = 3; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.1, t + dur * 0.95); g.gain.linearRampToValueAtTime(0.0001, t + dur); s.connect(f).connect(g).connect(musicBus); s.start(t); s.stop(t + dur + 0.02); }
+function crash(t) { const [s, f, g] = longNoise(t, 1.4, "highpass", 6000, 3500); g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.001, t + 1.4); s.connect(f).connect(g).connect(musicBus); s.start(t); s.stop(t + 1.45); }
+function snareRoll(t, spb, k) { const n = k < 0.5 ? 2 : 4; for (let i = 0; i < n; i++) noise(t + (i * spb) / n, 0.09, "bandpass", 1800 + k * 1200, 0.1 + k * 0.16); }
 const hat = (t, vol) => noise(t, 0.05, "highpass", 7500, vol);
 const clap = (t) => { for (const k of [0, 0.012, 0.024]) noise(t + k, 0.16, "bandpass", 1500, 0.32); };
 function schedule() {
@@ -71,7 +75,10 @@ function schedule() {
     const t = nextBeatT, b = beatN % 4;
     if (beatN < 4) { kick(t, 0.6); hat(t + spb / 2, 0.18); blip(t, hz(b === 3 ? 88 : 81), 0.12, "square", 0.12, master); if (b === 3) noise(t, spb, "highpass", 2000, 0.12); nextBeatT += spb; beatN++; continue; } // count-in cue
     const m = beatN - 4, bar = Math.floor(m / 4) % 4, sect = Math.floor(m / 32) % 2; // 8-bar sections: verse / drop
-    kick(t); hat(t + spb / 2, 0.22); if (sect) { hat(t + spb / 4, 0.1); hat(t + (3 * spb) / 4, 0.1); } if (b === 1 || b === 3) clap(t);
+    const ps = m % 32, fill = ps >= 28; // last bar of each 8-bar section: drum fill + riser into the next section
+    if (ps === 0 && m > 0) crash(t);
+    if (fill) { snareRoll(t, spb, (ps - 28) / 4); if (ps === 28) riser(t, spb * 4); }
+    if (ps !== 31) kick(t); hat(t + spb / 2, 0.22); if (sect) { hat(t + spb / 4, 0.1); hat(t + (3 * spb) / 4, 0.1); } if (b === 1 || b === 3) clap(t);
     const n = track.root + track.bass[bar], sweep = 500 + 2200 * ((m % 16) / 16);
     blip(t, hz(n), spb * 0.45, track.wave, 0.2, musicBus, sweep); blip(t + spb / 2, hz(n + 12), spb * 0.3, track.wave, 0.09, musicBus, sweep);
     if (b === 0) [0, 3, 7, 10].forEach((iv) => blip(t, hz(n + 24 + iv), spb * 3.6, "sawtooth", 0.022, padBus, 1800));
