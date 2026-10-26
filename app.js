@@ -300,6 +300,7 @@ window.dcPerf = { get fps() { return fpsE; }, get c3() { return want3d() && coac
 window.dcSetQuality = (q) => { quality = q; localStorage.setItem("dc.quality", q); };
 const detGap = () => quality === "low" ? Math.max(110, detE * 4) : quality === "high" ? Math.max(45, detE * 1.5) : (fpsE < 40 || detE > 35 ? Math.max(110, detE * 3) : 66); // keep the UI responsive on slow devices
 const partN = () => RM.matches || document.documentElement.classList.contains("reduce") || document.documentElement.classList.contains("noparticles") ? 0 : quality === "low" ? 0 : quality === "high" ? 26 : (fpsE < 40 ? 6 : 14);
+const limbM = new Array(8).fill(null);
 function burst(x, y) { for (let i = 0, k = partN(); i < k; i++) { const a = Math.random() * 6.283, v = 2 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 3, life: 1, c: ["#B8FF00", "#FFD23F", "#ff4fd8", "#7fd3ff"][i % 4] }); } }
 function drawParts(g) { if (!parts.length) return; for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; g.fillRect(p.x, p.y, 8, 8); } g.globalAlpha = 1; parts = parts.filter((p) => p.life > 0); }
 let lastIdle = 0, moveTxt = "";
@@ -331,8 +332,16 @@ function frame(now) {
   if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(inSrc(), now).landmarks?.[0] || null; } catch {} if (lastPose && window.dcPose) window.dcPose(lastPose, now); detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
   if (playing) ghostDraw(g, t, W, H);
   if (playing && !paused && lastPose && stream) ghostRecord(t, lastPose);
-  if (lastPose && stream) { const glow = !noFx() && quality !== "low" && !document.documentElement.classList.contains("noparticles"); g.lineCap = "round"; g.lineJoin = "round"; g.beginPath(); for (const [i, j] of [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]) { const p = lastPose[i], q = lastPose[j]; g.moveTo(p.x * W, p.y * H); g.lineTo(q.x * W, q.y * H); }
-    if (glow) { g.strokeStyle = "rgba(255,79,216,.28)"; g.lineWidth = 18; g.stroke(); g.strokeStyle = "rgba(127,211,255,.35)"; g.lineWidth = 10; g.stroke(); } g.strokeStyle = glow ? "#ffd6f5" : "#ff4fd8"; g.lineWidth = glow ? 4 : 6; g.stroke(); }
+  if (lastPose && stream) { const glow = !noFx() && quality !== "low" && !document.documentElement.classList.contains("noparticles"); g.lineCap = "round"; g.lineJoin = "round";
+    const live = playing && !paused && !refVideo && t >= 0, ua = live ? poseAngles(lastPose) : null, cb = document.documentElement.classList.contains("cb");
+    if (ua) for (let k = 0; k < 8; k++) { const m = ua.v[k] < 0.4 ? null : Math.max(0, 1 - Math.abs(wrap(ua.a[k] - ref[k])) / 75); limbM[k] = m == null ? limbM[k] : limbM[k] == null ? m : limbM[k] * 0.75 + m * 0.25; } else limbM.fill(null);
+    const P = i => [lastPose[i].x * W, lastPose[i].y * H], path = list => { g.beginPath(); for (const [i, j] of list) { const p = P(i), q = P(j); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); } };
+    const ALL = [...SEGS, [11, 12], [23, 24], [11, 23], [12, 24]]; path(ALL);
+    if (glow) { g.strokeStyle = "rgba(255,79,216,.28)"; g.lineWidth = 18; g.stroke(); g.strokeStyle = "rgba(127,211,255,.35)"; g.lineWidth = 10; g.stroke(); } g.strokeStyle = glow ? "#ffd6f5" : "#ff4fd8"; g.lineWidth = glow ? 4 : 6; g.stroke();
+    if (ua) { const col = m => m >= 0.7 ? (cb ? "#4FC3FF" : "#B8FF00") : m >= 0.45 ? (cb ? "#FFFFFF" : "#FFD23F") : (cb ? "#FF9F1C" : "#FF4D6D"); const lw = Math.max(6, Math.min(W, H) * 0.014);
+      for (let k = 0; k < 8; k++) { const m = limbM[k]; if (m == null) continue; path([SEGS[k]]); g.strokeStyle = "rgba(0,0,0,.55)"; g.lineWidth = lw + 4; g.stroke(); g.strokeStyle = col(m); g.lineWidth = lw; g.stroke(); }
+      g.fillStyle = "#fff"; for (const i of [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) { const p = P(i); g.beginPath(); g.arc(p[0], p[1], lw * 0.45, 0, 6.283); g.fill(); } }
+  }
   g.restore();
   g.save(); g.translate(W - 170, 10); drawStage(g, 160, 160, bt, { still: true }); if (c3) g.drawImage(c3, 0, 0, 160, 160); else drawCoach(g, 160, 160, ref, coachCol(), true); g.restore();
   if (playing && !paused && !refVideo && t < 0) { const left = Math.ceil((-t * bpm) / 60); const ph = noFx() ? 0 : ((-t * bpm) / 60) % 1; g.save(); g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(W, H) * (0.28 + ph * 0.08))}px system-ui`; g.fillStyle = left <= 1 ? "#B8FF00" : "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 16; g.fillText(left > 3 ? "Ready?" : String(left), W / 2, H / 2 + Math.min(W, H) * 0.1); g.font = "800 28px system-ui"; g.fillStyle = "#fff"; g.fillText("Get in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); g.restore(); }
