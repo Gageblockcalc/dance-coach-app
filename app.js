@@ -310,6 +310,14 @@ const want3d = () => S.coach3d !== false && quality !== "low" && !((navigator.de
 const maybe3d = () => { if (want3d()) coach3dLoad(); };
 addEventListener("load", () => setTimeout(() => (window.requestIdleCallback || setTimeout)(maybe3d), 2500));
 addEventListener("dc-settings", (e) => { if (e.detail === "stage") lastIdle = 0; if (e.detail === "coach3d" || e.detail === "look") { maybe3d(); applyLook(); } });
+function frameIssue(L) { if (!L) return "Can't see you. Step into view"; const v = (i) => (L[i]?.visibility ?? 1), y = (i) => L[i]?.y ?? 0;
+  const sw = Math.abs((L[11]?.x ?? 0) - (L[12]?.x ?? 0)), cx = ((L[11]?.x ?? 0.5) + (L[12]?.x ?? 0.5) + (L[23]?.x ?? 0.5) + (L[24]?.x ?? 0.5)) / 4;
+  if (v(0) < 0.4 || y(0) < 0.01) return "Step back so your head shows";
+  if (sw > 0.42) return "Too close. Step back a little";
+  if (Math.min(v(27), v(28)) < 0.4 || Math.max(y(27), y(28)) > 0.99) return "Step back so your feet show";
+  if (cx < 0.2 || cx > 0.8) return "Move to the middle of the screen";
+  return null; }
+let frameBad = null, frameBadAt = 0, frameOkAt = 0; window.dcFrame = () => frameBad; window.dcFrameIssue = frameIssue;
 function frame(now) {
   requestAnimationFrame(frame);
   if (!playing && !stream && !refVideo && !parts.length && now > victoryUntil) { if (now - lastIdle < 120) return; lastIdle = now; } // idle: ~8 fps, saves battery + main thread
@@ -330,6 +338,7 @@ function frame(now) {
   if (stream && cam.readyState >= 2) g.drawImage(cam, 0, 0, W, H); else drawStage(g, W, H, bt, { still: stStill, fx: stFx });
   if (stream && cam.readyState >= 2 && !stStill) drawStage(g, W, H, bt, { overlay: true });
   if (lm && stream && cam.readyState >= 2 && now - lastDet > detGap()) { lastDet = now; const t1 = performance.now(); try { lastPose = lm.detectForVideo(inSrc(), now).landmarks?.[0] || null; } catch {} if (lastPose && window.dcPose) window.dcPose(lastPose, now); detE = detE * 0.8 + (performance.now() - t1) * 0.2; }
+  if (playing && !paused && stream && !refVideo) { const iss = frameIssue(lastPose); if (iss) { frameOkAt = 0; frameBadAt ||= now; if (now - frameBadAt > 900) frameBad = iss; } else { frameBadAt = 0; frameOkAt ||= now; if (now - frameOkAt > 400) frameBad = null; } } else { frameBad = null; frameBadAt = frameOkAt = 0; }
   if (playing) ghostDraw(g, t, W, H);
   if (playing && !paused && lastPose && stream) ghostRecord(t, lastPose);
   if (lastPose && stream) { const glow = !noFx() && quality !== "low" && !document.documentElement.classList.contains("noparticles"); g.lineCap = "round"; g.lineJoin = "round";
@@ -344,7 +353,8 @@ function frame(now) {
   }
   g.restore();
   g.save(); g.translate(W - 170, 10); drawStage(g, 160, 160, bt, { still: true }); if (c3) g.drawImage(c3, 0, 0, 160, 160); else drawCoach(g, 160, 160, ref, coachCol(), true); g.restore();
-  if (playing && !paused && !refVideo && t < 0) { const left = Math.ceil((-t * bpm) / 60); const ph = noFx() ? 0 : ((-t * bpm) / 60) % 1; g.save(); g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(W, H) * (0.28 + ph * 0.08))}px system-ui`; g.fillStyle = left <= 1 ? "#B8FF00" : "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 16; g.fillText(left > 3 ? "Ready?" : String(left), W / 2, H / 2 + Math.min(W, H) * 0.1); g.font = "800 28px system-ui"; g.fillStyle = "#fff"; g.fillText("Get in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); g.restore(); }
+  if (playing && !paused && !refVideo && t < 0) { const left = Math.ceil((-t * bpm) / 60); const ph = noFx() ? 0 : ((-t * bpm) / 60) % 1; g.save(); g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(W, H) * (0.28 + ph * 0.08))}px system-ui`; g.fillStyle = left <= 1 ? "#B8FF00" : "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 16; g.fillText(left > 3 ? "Ready?" : String(left), W / 2, H / 2 + Math.min(W, H) * 0.1); g.font = "800 28px system-ui"; g.fillStyle = "#fff"; if (stream && !frameBad && lastPose) { g.fillStyle = "#B8FF00"; g.fillText("✓ You're in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); } else g.fillText(stream ? (frameBad || "Get in the frame!") : "Get in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); g.restore(); }
+  if (playing && !paused && frameBad && t >= 0) { g.save(); g.font = `800 ${Math.max(16, Math.round(Math.min(W, H) * 0.04))}px system-ui`; g.textAlign = "center"; const tx = "📷 " + frameBad, tw = g.measureText(tx).width + 28, bh = Math.max(34, Math.round(Math.min(W, H) * 0.07)), by = H * 0.58; g.fillStyle = "rgba(0,0,0,.72)"; g.beginPath(); g.roundRect ? g.roundRect(W / 2 - tw / 2, by - bh / 2, tw, bh, bh / 2) : g.rect(W / 2 - tw / 2, by - bh / 2, tw, bh); g.fill(); g.strokeStyle = "#FFD23F"; g.lineWidth = 2; g.stroke(); g.fillStyle = "#FFD23F"; g.textBaseline = "middle"; g.fillText(tx, W / 2, by + 1); g.restore(); }
   if (playing && !paused && lastPose && stream && (refVideo || t >= 0)) {
     const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
     if (u && !refVideo) { const lag = 30 / bpm; coachAdd(u, ref, refV, t, songLen(bpm), coachAt(t - lag, bpm).pose, coachAt(t + lag, bpm).pose); if (S.liveTips !== false) { const cue = coachLive(u, ref, now); if (cue) status("💡 " + cue); } if (s0 != null && t >= 0) noteMove(c.idx, s0); }
