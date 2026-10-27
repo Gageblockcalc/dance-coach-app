@@ -52,7 +52,7 @@ const ogFor = (r) => `${HUB}/og?site=${CTX}&title=${encodeURIComponent(r ? `I sc
 export async function hubShare({ result, file } = {}) {
   if (!on()) return false;
   try { const H = await loadHub(); H.media.setKids(false);
-    const r = await H.share.open({ url: "https://dancecoach.pages.dev/?ref=share", title: result ? `I scored ${result.pct}% on Dance Coach!` : "Dance Coach", text: result ? `${result.stars} stars, ${result.perfect} perfect moments. Can you beat me?` : "Free family-friendly dance game. Your camera scores your moves, on-device.", image: ogFor(result), file });
+    const r = await H.share.open({ url: "https://dancecoach.pages.dev/?ref=share", title: result ? `I scored ${result.pct}% on Dance Coach!` : "Dance Coach", text: result ? `I scored ${result.pct}%${result.grade ? ` (grade ${result.grade})` : ""}${result.song ? ` on ${result.song}` : ""}${result.combo >= 2 ? ` · best combo ×${result.combo}` : ""} — ${result.stars} stars, ${result.perfect} perfect moments. Can you beat me on Dance Coach?` : "Free family-friendly dance game. Your camera scores your moves, on-device.", image: ogFor(result), file });
     return !!(r && r.ok) || true; } catch { return false; }
 }
 export function initShare() {
