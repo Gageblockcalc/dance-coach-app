@@ -187,8 +187,8 @@ const noFx = () => RM.matches || document.documentElement.classList.contains("re
 const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : mode === "practice" ? "practice" : mode === "event" ? "event-" + (eventPlan()?.key || "") : "song-" + track.id + (runSpd !== 1 ? "@" + runSpd : "");
 window.dcGhostOn = () => S.ghost !== false;
 initTips(); initTV(moveFocus); document.documentElement.classList.toggle("big", !!S.big); document.getElementById("replayOb")?.addEventListener("click", () => { const ob = document.getElementById("onboard"); new MutationObserver((m, o) => { if (ob.hidden) { o.disconnect(); setTimeout(showTips, 400); } }).observe(ob, { attributes: true, attributeFilter: ["hidden"] }); });
-let mvSum = {}, mvCnt = {};
-function moveHTML() { const ks = Object.keys(mvCnt).filter((k) => mvCnt[k] >= 10 && MOVES[k]); if (ks.length < 2) return ""; const av = (k) => mvSum[k] / mvCnt[k]; ks.sort((a, b) => av(b) - av(a)); const h = ks[0], l = ks[ks.length - 1], hi = av(h), lo = av(l), pc = (v) => Math.round(Math.max(0, Math.min(1, v)) * 100); return `<div class="note movefocus">🕺 Strongest move: <b>${MOVES[h].name}</b> (${pc(hi)}%)${lo < 0.7 || lo < hi - 0.08 ? ` · 🎯 Practice next: <b>${MOVES[l].name}</b> (${pc(lo)}%)` : ""}</div>`; }
+let mvSum = {}, mvCnt = {}, mvFocus = null;
+function moveHTML() { mvFocus = null; const ks = Object.keys(mvCnt).filter((k) => mvCnt[k] >= 10 && MOVES[k]); if (ks.length < 2) return ""; const av = (k) => mvSum[k] / mvCnt[k]; ks.sort((a, b) => av(b) - av(a)); const h = ks[0], l = ks[ks.length - 1], hi = av(h), lo = av(l), pc = (v) => Math.round(Math.max(0, Math.min(1, v)) * 100); return `<div class="note movefocus">🕺 Strongest move: <b>${MOVES[h].name}</b> (${pc(hi)}%)${lo < 0.7 || lo < hi - 0.08 ? ((mvFocus = +l), ` · 🎯 Practice next: <b>${MOVES[l].name}</b> (${pc(lo)}%)`) : ""}</div>${mvFocus != null && !refVideo && mode !== "event" ? `<button id="practiceNextBtn" class="b-pink" style="width:100%;margin-top:8px;font-size:17px;font-weight:900">🎯 Practice ${MOVES[l].name}</button>` : ""}`; }
 function focusHTML() { const av = limbSum.map((v, k) => (limbCnt[k] > 10 ? v / limbCnt[k] : null)); let lo = -1, hi = -1; av.forEach((v, k) => { if (v == null) return; if (lo < 0 || v < av[lo]) lo = k; if (hi < 0 || v > av[hi]) hi = k; }); if (lo < 0) return ""; const pc = (v) => Math.round(v * 100);
   const cb = document.documentElement.classList.contains("cb"), SHORT = ["L upper arm", "L forearm", "R upper arm", "R forearm", "L thigh", "L lower leg", "R thigh", "R lower leg"], focus = lo !== hi && av[lo] < 0.7 ? lo : -1;
   const col = (v) => (v >= 0.7 ? (cb ? "#4da3ff" : "#B8FF00") : v >= 0.45 ? (cb ? "#ffffff" : "#FFD23F") : (cb ? "#ff9f1c" : "#ff7a59"));
@@ -251,9 +251,10 @@ function smartBox() {
     if (b.id === "smartNo") { localStorage.setItem("dc.smartSnooze", String(songs + 3)); b.textContent = "OK, I'll ask again later"; b.disabled = true; }
     if (b.id === "smartPractice") { loadPractice(); b.textContent = "✓ Practice routine loaded. Press Start"; b.disabled = true; } };
 }
-function loadPractice() {
-  const weak = weakMoves(4); if (weak.length < 3) return false;
+function loadPractice(focus) {
+  const hasF = focus != null && MOVES[focus], weak = hasF ? [...new Set([+focus, ...weakMoves(4)])].slice(0, 4) : weakMoves(4); if (!hasF && weak.length < 3) return false;
   routine = practicePlan(weak, MOVES.length, today); mode = "practice";
+  if (hasF) { status(`🎯 Practice routine: ${MOVES[focus].name} first, plus your tricky moves, to ${track.name}. Press Start when you're ready.`); return true; }
   const fav = favouriteSong(progState().hist, OPEN_TRACKS()); if (fav) { track = TRACKS.find((t) => t.id === fav) || track; $("#track").value = track.id; }
   status(`🎯 Practice routine: your trickiest moves plus two more, to ${track.name}. Turn on the camera, then Start.`); return true;
 }
@@ -274,7 +275,7 @@ function stop() {
     $("#result").insertAdjacentHTML("beforeend", boardHTML(lastBoard, mode === "daily" ? "Routine of the Day" : track.name));
     lastResult = { combo: maxCombo, pct, stars, perfect, daily: mode === "daily", song: track.name, grade: GRADE(pct)[0] };
     $("#cardBtn").onclick = () => resultCard().then((b) => { if (!b) return; const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dance-coach-result.png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
-    $("#shareBtn").onclick = () => share(); $("#challengeBtn").onclick = () => share(); $("#againBtn").onclick = () => { if (playing) return; start(); try { stage.scrollIntoView({ block: "center", behavior: noFx() ? "auto" : "smooth" }); } catch {} };
+    $("#shareBtn").onclick = () => share(); $("#challengeBtn").onclick = () => share(); { const pb = document.getElementById("practiceNextBtn"); if (pb) pb.onclick = () => { if (playing || mvFocus == null) return; if (loadPractice(mvFocus)) { $("#result").hidden = true; try { stage.scrollIntoView({ block: "center", behavior: noFx() ? "auto" : "smooth" }); } catch {} } }; } $("#againBtn").onclick = () => { if (playing) return; start(); try { stage.scrollIntoView({ block: "center", behavior: noFx() ? "auto" : "smooth" }); } catch {} };
     if (wasPlaying) setTimeout(() => { try { const r = $("#result"), y = r.getBoundingClientRect().top; if (y > innerHeight * 0.6 || y < 0) r.style.scrollMarginTop = "12px"; r.scrollIntoView({ block: "start", behavior: noFx() ? "auto" : "smooth" }); setTimeout(() => { const y2 = r.getBoundingClientRect().top; if (y2 < -4 || y2 > 60 && y2 > innerHeight * 0.6) r.scrollIntoView({ block: "start" }); }, 1100); } catch (e) {} }, 450);
     coins.onSongEnd({ stars, daily: mode === "daily", perfect, streak: streak() });
     if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); }
