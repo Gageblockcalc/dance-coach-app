@@ -215,6 +215,7 @@ async function share() {
   try { await navigator.clipboard.writeText(`${text} ${url}`); toastMsg("🔗 Link copied!"); } catch { toastMsg(url); }
 }
 function shareText(r) { const sn = r.song ? ` on ${r.song}` : "", cb = r.combo >= 2 ? ` · best combo ×${r.combo}` : ""; return `I scored ${r.pct}% (grade ${GRADE(r.pct)[0]})${sn}${cb} — can you beat me on Dance Coach?`; }
+{ const tvTip = () => { const e = document.getElementById("tvCamTip"); if (!e) return; const tv = document.documentElement.classList.contains("tv") || new URLSearchParams(location.search).get("tv") === "1"; e.hidden = !(tv && !stream); }; tvTip(); setInterval(tvTip, 1000); }
 window.dcShareText = () => (lastResult ? shareText(lastResult) : ""); window.dcShare = share; window.dcCardFor = (r) => { lastResult = r; return resultCard(); }; // also used by tests
 // ---- Shared AI buddy (web only; TODO native: needs data-safety/privacy update before shipping in the APK) ----
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
