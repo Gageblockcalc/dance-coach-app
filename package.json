@@ -1,7 +1,7 @@
 {
   "name": "dance-coach-app",
   "private": true,
-  "version": "1.0.59",
+  "version": "1.0.60",
   "scripts": {
     "build": "bash scripts/stamp.sh && bash scripts/build-web.sh",
     "deploy": "BUMP=1 bash scripts/stamp.sh && bash scripts/build-web.sh && cp -r bench bench.html dist/ && mkdir -p node_modules/.cache/wrangler && CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-ef2628ffa5adb47f7c9bdf2fa5561daf} npx -y wrangler@3 pages deploy dist --project-name dancecoach --branch main",
