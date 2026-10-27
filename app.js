@@ -301,6 +301,7 @@ if (new URLSearchParams(location.search).get("bench") === "1") addEventListener(
 window.dcPerf = { get fps() { return fpsE; }, get c3() { return want3d() && coach3dReady(); }, get det() { return detE; }, get q() { return quality; }, frames: 0 };
 window.dcSetQuality = (q) => { quality = q; localStorage.setItem("dc.quality", q); };
 const detGap = () => quality === "low" ? Math.max(110, detE * 4) : quality === "high" ? Math.max(45, detE * 1.5) : (fpsE < 40 || detE > 35 ? Math.max(110, detE * 3) : 66); // keep the UI responsive on slow devices
+const glowOK = () => quality === "high" || (quality !== "low" && !(quality === "auto" && fpsE < 40)); // Auto: skip glow passes on slow phones
 const partN = () => RM.matches || document.documentElement.classList.contains("reduce") || document.documentElement.classList.contains("noparticles") ? 0 : quality === "low" ? 0 : quality === "high" ? 26 : (fpsE < 40 ? 6 : 14);
 const limbM = new Array(8).fill(null), limbSum = new Array(8).fill(0), limbCnt = new Array(8).fill(0);
 let firstHit = false;
@@ -345,7 +346,7 @@ function frame(now) {
   if (playing && !paused && stream && !refVideo) { const iss = frameIssue(lastPose); if (iss) { frameOkAt = 0; frameBadAt ||= now; if (now - frameBadAt > 900) frameBad = iss; } else { frameBadAt = 0; frameOkAt ||= now; if (now - frameOkAt > 400) frameBad = null; } } else { frameBad = null; frameBadAt = frameOkAt = 0; }
   if (playing) ghostDraw(g, t, W, H);
   if (playing && !paused && lastPose && stream) ghostRecord(t, lastPose);
-  if (lastPose && stream) { const glow = !noFx() && quality !== "low" && !document.documentElement.classList.contains("noparticles"); g.lineCap = "round"; g.lineJoin = "round";
+  if (lastPose && stream) { const glow = !noFx() && glowOK() && !document.documentElement.classList.contains("noparticles"); g.lineCap = "round"; g.lineJoin = "round";
     const live = playing && !paused && !refVideo && t >= 0, ua = live ? poseAngles(lastPose) : null, cb = document.documentElement.classList.contains("cb");
     if (ua) for (let k = 0; k < 8; k++) { const m = ua.v[k] < 0.4 ? null : Math.max(0, 1 - Math.abs(wrap(ua.a[k] - ref[k])) / 75); limbM[k] = m == null ? limbM[k] : limbM[k] == null ? m : limbM[k] * 0.75 + m * 0.25; if (m != null) { limbSum[k] += m; limbCnt[k]++; } } else limbM.fill(null);
     const P = i => [lastPose[i].x * W, lastPose[i].y * H], path = list => { g.beginPath(); for (const [i, j] of list) { const p = P(i), q = P(j); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); } };
