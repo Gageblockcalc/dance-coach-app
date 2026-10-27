@@ -489,4 +489,7 @@ setInterval(() => {
 }, 500);
 
 // Auto-pause when the app goes to the background (saves battery, keeps the score fair)
+let wakeLk = null;
+async function keepAwake() { try { if (playing && !document.hidden && !wakeLk && navigator.wakeLock) { wakeLk = await navigator.wakeLock.request("screen"); window.dcPerf.wake = 1; wakeLk.addEventListener("release", () => { wakeLk = null; }); } } catch (e) {} }
+setInterval(() => { if (playing) keepAwake(); else if (wakeLk) { try { wakeLk.release(); } catch (e) {} wakeLk = null; } }, 2000);
 document.addEventListener("visibilitychange", () => { if (document.hidden && playing && !paused) setPaused(true); });
