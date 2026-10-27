@@ -257,6 +257,7 @@ window.dcSmart = { dailyRoutine: () => dailyRoutine(), speed: () => runSpd };
 function stop() {
   const wasPlaying = playing;
   if (paused) { paused = false; document.body.classList.remove("paused"); ac?.resume(); window.speechSynthesis?.resume(); status("Stopped."); }
+  if (baseTitle) document.title = baseTitle;
   playing = false; cntCancel(); musicStop(); refVideo?.pause(); $("#startBtn").textContent = "▶ Start"; document.body.classList.remove("dancing");
   if (n > 20) { const pct = Math.round((sum / n) * 100), stars = pct >= 80 ? 3 : pct >= 60 ? 2 : pct >= 35 ? 1 : 0;
     $("#result").hidden = false; const [gr, gc] = GRADE(pct); $("#result").innerHTML = `<div style="font-size:40px"><span class="grade" role="img" aria-label="Grade ${gr}" style="display:inline-block;min-width:1.4em;margin-inline-end:8px;padding:0 6px;border:3px solid ${gc};border-radius:12px;color:${gc};font-weight:900;line-height:1.2">${gr}</span>${"⭐".repeat(stars) || "💪"}</div><b style="font-size:28px">${pct}% match</b>${(() => { const nx = [[50, "C"], [65, "B"], [80, "A"], [90, "S"]].find(([v]) => pct < v); return nx ? `<div class="note" id="nextGrade">⬆️ ${nx[0] - pct}% more for grade ${nx[1]}</div>` : `<div class="note" id="nextGrade">👑 Top grade!</div>`; })()}<div>${perfect} perfect moments${mode === "daily" ? " · daily challenge" : ""}</div><div class="judge" aria-label="Beat results"><span class="j-p">★ Perfect ${judged.Perfect || 0}</span><span class="j-g">◆ Great ${judged.Great || 0}</span><span class="j-o">● Good ${judged.Good || 0}</span><span class="j-m">✕ Miss ${judged.Miss || 0}</span><span class="j-c">Best combo ×${maxCombo}</span></div>${seasonLine() ? `<div class="note" style="margin-top:6px">🎙️ ${seasonLine()}</div>` : ""}<div class="row grow" style="margin-top:10px"><button id="cardBtn" class="b-sky">🖼 Save result card</button><button id="shareBtn" class="b-gold">📣 Share</button></div>${focusHTML()}<button id="challengeBtn" class="b-pink cta-pulse" style="width:100%;margin-top:10px;font-size:20px;font-weight:900">🔥 Challenge a friend: beat my ${gr} · ${pct}%</button><button id="againBtn" class="b-gold" style="width:100%;margin-top:8px;font-size:18px;font-weight:900">🔁 Dance again</button>`;
@@ -287,8 +288,9 @@ $("#recBtn").onclick = () => {
   rec.start(500); window.__recT0 = performance.now(); if (localStorage.getItem("dc.share") === "1") window.__recCap = setTimeout(() => { if (rec && rec.state === "recording") rec.stop(); }, 29500); $("#recBtn").textContent = "⏹ Stop recording"; if (!playing) start();
 };
 
+let baseTitle = "";
 function setPaused(on) { cntCancel(); cntLast = -1;
-  if (!playing || on === paused) return; paused = on; document.body.classList.toggle("paused", on);
+  if (!playing || on === paused) return; paused = on; document.body.classList.toggle("paused", on); try { if (!baseTitle) baseTitle = document.title; document.title = on ? "⏸ Paused · " + baseTitle : baseTitle; } catch (e) {}
   if (on) { pausedAt = performance.now(); refVideo?.pause(); ac?.suspend(); window.speechSynthesis?.pause(); status("⏸ Paused — press Start/▶ to resume."); $("#startBtn").textContent = "▶ Resume"; }
   else { t0 += performance.now() - pausedAt; if (refVideo) refVideo.play(); ac?.resume(); window.speechSynthesis?.resume(); status("Dancing!"); $("#startBtn").textContent = "■ Stop"; }
 }
