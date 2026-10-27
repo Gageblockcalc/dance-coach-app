@@ -266,6 +266,7 @@ function stop() {
     lastResult = { combo: maxCombo, pct, stars, perfect, daily: mode === "daily", song: track.name };
     $("#cardBtn").onclick = () => resultCard().then((b) => { if (!b) return; const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dance-coach-result.png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); });
     $("#shareBtn").onclick = () => share(); $("#challengeBtn").onclick = () => share(); $("#againBtn").onclick = () => { if (playing) return; start(); try { stage.scrollIntoView({ block: "center", behavior: noFx() ? "auto" : "smooth" }); } catch {} };
+    if (wasPlaying) setTimeout(() => { try { const r = $("#result"), y = r.getBoundingClientRect().top; if (y > innerHeight * 0.6 || y < 0) r.style.scrollMarginTop = "12px"; r.scrollIntoView({ block: "start", behavior: noFx() ? "auto" : "smooth" }); } catch (e) {} }, 450);
     coins.onSongEnd({ stars, daily: mode === "daily", perfect, streak: streak() });
     if (mode === "daily") { const b = best(); b[today] = Math.max(b[today] || 0, pct); localStorage.setItem("dc.best", JSON.stringify(b)); showDaily(); }
     flushMoves(); const ev = mode === "event" ? eventPlan() : null, evMet = !!ev && pct >= ev.goal; if (ev) $("#result").insertAdjacentHTML("beforeend", `<div class="note">${seasonLabel(ev.sid)} event goal ${ev.goal}%: ${evMet ? "reached! 🎉" : "not yet. Try again any time this season"}</div>`);
