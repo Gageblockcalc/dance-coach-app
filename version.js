@@ -1,1 +1,1 @@
-window.DC_VERSION="v1.0.56 · bb8d7e2 · Oct 27";window.DC_VERSION_CODE=10056;
+window.DC_VERSION="v1.0.57 · e1214a1 · Oct 27";window.DC_VERSION_CODE=10057;
