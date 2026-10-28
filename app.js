@@ -217,7 +217,7 @@ async function share() {
     if (navigator.share) { await navigator.share({ title: "Dance Coach", text, url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
   try { await navigator.clipboard.writeText(`${text} ${url}`); toastMsg("🔗 Link copied!"); } catch { toastMsg(url); }
 }
-function shareText(r) { const sn = r.song ? ` on ${r.song}` : "", cb = r.combo >= 2 ? ` · best combo ×${r.combo}` : ""; return `I scored ${r.pct}% (grade ${GRADE(r.pct)[0]})${sn}${cb} — can you beat me on Dance Coach?`; }
+function shareText(r) { const sn = r.song ? ` on ${r.song}` : "", cb = r.combo >= 2 ? ` · best combo ×${r.combo}` : "", pf = r.perfect > 0 ? ` · ${r.perfect} perfect` : ""; return `I scored ${r.pct}% (grade ${GRADE(r.pct)[0]})${sn}${cb}${pf} — can you beat me on Dance Coach?`; }
 { const tvTip = () => { const e = document.getElementById("tvCamTip"); if (!e) return; const tv = document.documentElement.classList.contains("tv") || new URLSearchParams(location.search).get("tv") === "1"; const ob = document.getElementById("onboard"); e.hidden = !(tv && !stream && (!ob || ob.hidden)); }; tvTip(); setInterval(tvTip, 1000); }
 window.dcShareText = () => (lastResult ? shareText(lastResult) : ""); window.dcShare = share; window.dcCardFor = (r) => { lastResult = r; return resultCard(); }; // also used by tests
 // ---- Shared AI buddy (web only; TODO native: needs data-safety/privacy update before shipping in the APK) ----
