@@ -31,16 +31,33 @@ export function coachHTML(r) {
 }
 
 // Live form cues during a song: a short tip at most every 7 s about the body part that is furthest off (on-device only).
+// Rotates phrasing, never repeats the same tip text within 15 s, and gives an occasional cheer when form is on point.
+const LIVE = {
+  armLow: ["lift your {p} higher", "reach your {p} up tall", "stretch that {p} all the way up"],
+  fore: ["match the coach with your {p}", "bend your {p} like the coach", "copy the coach's {p} shape"],
+  leg: ["watch your {s} leg, copy the coach's step", "step with your {s} leg like the coach", "check your {s} foot — follow the coach"],
+  gen: ["line up your {p} with the coach", "point your {p} the same way as the coach", "mirror the coach with your {p}"],
+  good: ["looking sharp — keep it up!", "great form — you've got this!", "nice moves — stay on the beat!"],
+};
 let lv = null;
-export function liveReset() { lv = { err: new Float32Array(8), low: new Float32Array(8), n: 0, last: performance.now() }; }
+export function liveReset() { lv = { err: new Float32Array(8), low: new Float32Array(8), n: 0, last: performance.now(), said: new Map(), rot: 0, goodAt: 0 }; }
+function pick(list, w, now) {
+  const side = w === 0 || w === 1 || w === 4 || w === 5 ? "left" : "right";
+  for (let k = 0; k < list.length; k++) {
+    const txt = list[(lv.rot + k) % list.length].replace("{p}", PART[w] || "arms").replace("{s}", side);
+    if (now - (lv.said.get(txt) || -1e9) >= 15000) { lv.rot++; lv.said.set(txt, now); return "Coach tip: " + txt; }
+  }
+  return null;
+}
 export function coachLive(u, ref, now) {
   if (!lv || !u || !ref) return null;
   for (let i = 0; i < 8; i++) { if (u.v[i] < 0.4) continue; lv.err[i] = lv.err[i] * 0.96 + Math.abs(wrap(u.a[i] - ref[i])) * 0.04; lv.low[i] = lv.low[i] * 0.96 + (Math.abs(ref[i]) - Math.abs(u.a[i])) * 0.04; }
   if (++lv.n < 45 || now - lv.last < 7000) return null;
-  let w = 0; for (let i = 1; i < 8; i++) if (lv.err[i] > lv.err[w]) w = i;
-  if (lv.err[w] < 28) return null; lv.last = now;
-  if ((w === 0 || w === 2) && lv.low[w] > 18) return `Coach tip: lift your ${PART[w]} higher`;
-  if (w === 1 || w === 3) return `Coach tip: match the coach with your ${PART[w]}`;
-  if (w >= 4) return `Coach tip: watch your ${w < 6 ? "left" : "right"} leg, copy the coach's step`;
-  return `Coach tip: line up your ${PART[w]} with the coach`;
+  let w = 0, sum = 0; for (let i = 0; i < 8; i++) { sum += lv.err[i]; if (lv.err[i] > lv.err[w]) w = i; }
+  if (lv.err[w] < 28) {
+    if (sum / 8 < 14 && now - lv.goodAt > 25000) { const t = pick(LIVE.good, w, now); if (t) { lv.goodAt = lv.last = now; return t; } }
+    return null;
+  }
+  const list = (w === 0 || w === 2) && lv.low[w] > 18 ? LIVE.armLow : w === 1 || w === 3 ? LIVE.fore : w >= 4 ? LIVE.leg : LIVE.gen;
+  const t = pick(list, w, now); if (t) lv.last = now; return t;
 }
