@@ -165,10 +165,10 @@ $("#dailyBtn").onclick = () => { const d = dailyRoutine(); routine = d.routine; 
 $("#freeBtn").onclick = () => { routine = FULL; mode = "free"; status("Free dance: full routine."); };
 
 $("#camBtn").onclick = async () => {
-  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; $("#camBtn").textContent = "📷 Turn on camera"; return; }
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; $("#camBtn").textContent = "📷 Turn on camera"; $("#camBtn").setAttribute("aria-pressed", "false"); return; }
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
-    cam.srcObject = stream; await cam.play(); $("#camBtn").textContent = "Camera off"; status("Loading pose tracker (on this device)… " + (seasonLine() || "Stretch those dancing feet!"));
+    cam.srcObject = stream; await cam.play(); $("#camBtn").textContent = "Camera off"; $("#camBtn").setAttribute("aria-pressed", "true"); status("Loading pose tracker (on this device)… " + (seasonLine() || "Stretch those dancing feet!"));
     lm ??= await landmarker(); status("Ready! Pick a track and press Start.");
   } catch (e) { if (!stream && (!navigator.mediaDevices || /NotFound|Overconstrained|DevicesNotFound/.test(e?.name || ""))) { status("📷 No camera found on this device. Dance Coach needs a camera to score your moves — you can still press Start and dance along with Coach Disco Dan!"); return; } status(stream ? "Pose tracker couldn't load: " + e.message : (window.Capacitor?.isNativePlatform?.() ? "Camera blocked — allow it in Android Settings › Apps › Dance Coach › Permissions." : "Camera blocked — allow it in your browser's site settings.")); }
 };
