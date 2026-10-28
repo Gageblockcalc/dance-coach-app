@@ -23,7 +23,7 @@ body.dancing .hide-dance{display:none}.pause-only{display:none!important}body.pa
 /* sheets */
 .sheet{position:fixed;inset:0;z-index:50;background:rgba(8,4,18,.86);display:grid;place-items:end center;padding:var(--st) var(--sr) 0 var(--sl)}
 .sheet[hidden]{display:none}.sheet>div{background:var(--card);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:26px 26px 0 0;padding:20px 18px calc(20px + var(--sb));animation:up .28s ease-out}
-.cta-pulse{animation:ctaP 1.6s ease-in-out 3}@keyframes ctaP{50%{transform:scale(1.04);box-shadow:0 0 0 6px rgba(255,79,216,.35)}}.pb-hit{animation:pop .5s ease-out}@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.cam-nudge{animation:camN .5s ease-in-out 3}@keyframes camN{50%{transform:scale(1.08);box-shadow:0 0 0 6px rgba(184,255,0,.55)}}.cta-pulse{animation:ctaP 1.6s ease-in-out 3}@keyframes ctaP{50%{transform:scale(1.04);box-shadow:0 0 0 6px rgba(255,79,216,.35)}}.pb-hit{animation:pop .5s ease-out}@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 .sheet h2{margin:0 0 8px;font-size:22px;outline:none}.sheet p,.sheet li{color:var(--mut)}
 .switch{width:100%;justify-content:space-between;background:var(--card2);color:var(--txt);text-align:left;padding:12px 16px;min-height:64px;margin:6px 0;font-weight:700}
 .lookRow{margin:10px 0}.lookRow>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.lookChip{flex:1 1 84px;min-height:44px;padding:6px 8px;white-space:nowrap;background:var(--card2);color:var(--txt);border:2px solid var(--c);font-weight:700}.lookChip[aria-pressed=true]{background:var(--c);color:#120a22}.lookChip[disabled]{white-space:normal;opacity:.6;cursor:not-allowed}
