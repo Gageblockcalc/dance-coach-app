@@ -14,6 +14,10 @@ export const SEASONS = {
     "That shimmy was pure caramel apple: sticky-sweet and fun!",
     "Boo-tiful footwork! Okay, that one was a little spooky-silly.",
     "Costume check: sparkly, fun and ready to dance. Ten out of ten!",
+    "Why don't skeletons dance alone? They have no-body to dance with! Good thing you're here!",
+    "The friendly ghost wants lessons. Said your moves were boo-tastic!",
+    "What's a vampire's favorite dance? The fang-dango! Your turn!",
+    "That move was so good, the bats did a loop-de-loop!",
   ] },
   thanksgiving: { label: "🦃 Thanksgiving", lines: [
     "I'm thankful for one thing today: that move you just did!",
@@ -74,6 +78,9 @@ export const SEASONS = {
     "Sweater weather, better dancer!",
     "You raked in the points on that one!",
     "Cozy feet, big beats!",
+    "Why did the scarecrow win an award? He was outstanding in his field, like your dancing!",
+    "Those moves are hotter than apple cider!",
+    "November's coming, and your groove is right on schedule!",
   ] },
   spring: { label: "🌷 Spring", lines: [
     "Your moves are blooming!",
