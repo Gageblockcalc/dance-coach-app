@@ -70,7 +70,7 @@ export function boardHTML(res, title) {
 export const isTV = /\b(TV|AFT[A-Z0-9]*|BRAVIA|GoogleTV|SMART-TV|Tizen|Web0S|CrKey)\b/i.test(navigator.userAgent) || new URLSearchParams(location.search).get("tv") === "1";
 export function initTV(moveFocus) {
   const css = document.createElement("style");
-  css.textContent = `:focus-visible{outline:4px solid #FFD23F!important;outline-offset:3px}html.big body{zoom:1.3}html.big .switch small{font-size:15px}`;
+  css.textContent = `:focus-visible{outline:4px solid #FFD23F!important;outline-offset:3px}html.big body{zoom:1.3}html.big .switch small{font-size:15px}html.tv :focus-visible,html.big :focus-visible{outline-width:6px!important;outline-offset:4px;box-shadow:0 0 0 10px rgba(255,210,63,.35)}@media (prefers-reduced-motion:no-preference){html.tv button:focus-visible,html.tv .btn:focus-visible,html.big button:focus-visible{transform:scale(1.07);transition:transform .12s}}html.tvtipoff #tvCamTip{display:none!important}#tvCamTip .tvTipBtn{display:block;margin-top:8px;font-size:inherit}`;
   document.head.append(css);
   addEventListener("keydown", (e) => {
     const t = e.target, D = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
@@ -84,4 +84,7 @@ export function initTV(moveFocus) {
   });
   addEventListener("keydown", (e) => { const t = e.target; if (e.key === "Enter" && t?.tagName === "SELECT" && (document.documentElement.classList.contains("big") || document.documentElement.classList.contains("tv"))) { e.preventDefault(); t.selectedIndex = (t.selectedIndex + 1) % t.options.length; t.dispatchEvent(new Event("change", { bubbles: true })); } });
   if (isTV) document.documentElement.classList.add("tv");
+  const tip = document.getElementById("tvCamTip"), off = () => document.documentElement.classList.add("tvtipoff");
+  if (tip && !tip.querySelector(".tvTipBtn")) { const b = document.createElement("button"); b.type = "button"; b.className = "tvTipBtn"; b.textContent = "👍 Got it — dance along without a camera"; b.addEventListener("click", () => { off(); document.getElementById("startBtn")?.focus(); }); tip.append(b); }
+  document.getElementById("fileIn")?.addEventListener("change", (e) => { if (e.target.files?.length) off(); });
 }
