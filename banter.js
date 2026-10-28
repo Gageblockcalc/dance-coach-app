@@ -10,6 +10,10 @@ export const JOKES = {
     "Boom! The beat wants to be your fan club president!",
     "Those moves just made the disco ball blush with glitter!",
     "Encore! Encore! Even the couch is clapping!",
+    "Your feet just got a standing ovation from the floorboards!",
+    "That routine was so cool, the fridge asked for your autograph!",
+    "The beat called. It wants to dance with you again tomorrow!",
+    "You danced so well, the confetti threw itself!",
   ],
   ok: [
     "Solid groove! A little more sparkle and you're a superstar!",
