@@ -35,6 +35,7 @@ const dec = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 export function ghostStart(key) {
   rec = []; lastRec = -1;
   const g = ls.get("dc.ghost." + key, null); ghost = g?.f ? { f: g.f.map(dec), pct: g.pct } : null;
+  return !!ghost;
 }
 export function ghostRecord(t, pose) {
   if (!rec || !pose || rec.length >= MAXF) return; const i = Math.floor(t * HZ); if (i <= lastRec || i < 0) return;
