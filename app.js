@@ -431,7 +431,7 @@ setInterval(syncLock, 200);
 initPads({
   isPlaying: () => playing, isPaused: () => paused,
   start: () => { if (!playing) start(); else if (paused) setPaused(false); else setPaused(true); },
-  song: (d) => { if (playing) return; let i = TRACKS.indexOf(track); for (let k = 0; k < TRACKS.length; k++) { i = (i + d + TRACKS.length) % TRACKS.length; if (!trackLocked(TRACKS[i])) break; } track = TRACKS[i]; $("#track").value = track.id; status(`Song: ${track.name}`); },
+  song: (d) => { if (playing) { toastMsg("⏹ Stop the song to change tracks"); return; } let i = TRACKS.indexOf(track); for (let k = 0; k < TRACKS.length; k++) { i = (i + d + TRACKS.length) % TRACKS.length; if (!trackLocked(TRACKS[i])) break; } track = TRACKS[i]; $("#track").value = track.id; status(`Song: ${track.name}`); toastMsg(`${d < 0 ? "◀" : "▶"} 🎵 ${track.name} (${i + 1}/${TRACKS.length})`); },
   stop: () => playing && stop(),
 });
 

@@ -102,7 +102,7 @@ export function toast(msg) { toastEl.textContent = msg; toastEl.classList.add("s
 let hintFam = "";
 function renderHint(f) {
   if (f === hintFam) return; hintFam = f; const L = labelsFor(f);
-  hint.innerHTML = `<span><kbd>${L[0]}</kbd>Select</span><span><kbd>${L[1]}</kbd>Back</span><span><kbd>${L[9]}</kbd>Play/Pause</span><span><kbd>${L[8]}</kbd>Settings</span><span><kbd>${L[4]}</kbd><kbd>${L[5]}</kbd>Song</span>`;
+  hint.innerHTML = `<span><kbd>${L[0]}</kbd>Select</span><span><kbd>${L[1]}</kbd>Back</span><span><kbd>${L[9]}</kbd>Play/Pause</span><span><kbd>${L[8]}</kbd>Settings</span><span><kbd>${L[4]}</kbd><kbd>${L[5]}</kbd>Prev / next song</span>`;
 }
 
 // ---- focus navigation ----
