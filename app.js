@@ -95,7 +95,7 @@ const MILES = [10, 25, 50, 100];
 function milestoneSound() { if (!ac || S.sounds === false) return; const t = ac.currentTime + 0.01, base = track.root + 60; [0, 4, 7, 12].forEach((d, i) => blip(t + i * 0.07, hz(base + d), 0.22, "triangle", 0.09, sfxBus)); noise(t + 0.28, 0.2, "highpass", 8000, 0.05, sfxBus); }
 const GRADE = (pct) => (pct >= 90 ? ["S", "#FFD23F"] : pct >= 80 ? ["A", "#B8FF00"] : pct >= 65 ? ["B", "#7fd3ff"] : pct >= 50 ? ["C", "#ffb86b"] : ["D", "#ff8a8a"]);
 let comboRebuild = 0, finStrong = null, pbChase = null, pbBest = 0, gradeTop = -1, gradeUp = null, dGoal = null, goalHit = 0;
-let cntLast = -1, cntBus = null, perfRing = null, liveTip = null, moveCall = null, lastMoveIdx = -1;
+let cntLast = -1, cntBus = null, perfRing = null, liveTip = null, moveCall = null, lastMoveIdx = -1, pictoSlot = -1, pictoAt = 0;
 function cntCancel() { if (cntBus) { try { cntBus.disconnect(); } catch (e) {} cntBus = null; } }
 function countBeep(go, at) { window.dcPerf.beeps = (window.dcPerf.beeps || 0) + 1; blip(at, hz(track.root + (go ? 72 : 67)), go ? 0.25 : 0.12, "square", go ? 0.07 : 0.05, cntBus, 3000); }
 function cntArm(negT, bpm) { cntCancel(); if (!ac || S.sounds === false) return; cntBus = ac.createGain(); cntBus.connect(sfxBus); const spb = 60 / bpm, now = ac.currentTime; for (let k = 3; k >= 1; k--) { const dt = negT - k * spb; if (dt > -0.15) countBeep(false, now + Math.max(0.01, dt)); } countBeep(true, now + Math.max(0.01, negT)); }
@@ -180,7 +180,7 @@ $("#fileIn").onchange = async (e) => {
 function start() {
   if (!stream && !refVideo && !start.nudged) { start.nudged = true; toastMsg("📷 Turn on camera to get scored"); const cb = $("#camBtn"); if (cb && !noFx()) { cb.classList.remove("cam-nudge"); void cb.offsetWidth; cb.classList.add("cam-nudge"); setTimeout(() => cb.classList.remove("cam-nudge"), 1600); } }
   paused = false; document.body.classList.remove("paused");
-  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; cntLast = -1; dGoal = null; goalHit = 0; gradeTop = -1; gradeUp = null; pbChase = null; finStrong = null; comboRebuild = 0; pbBest = 0; limbSum.fill(0); limbCnt.fill(0); mvSum = {}; mvCnt = {}; firstHit = false; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || mode === "event" || refVideo ? 1 : speedPref(); if (ghostStart(runKey()) && S.ghost !== false && !localStorage.getItem("dc.ghostTip")) { try { localStorage.setItem("dc.ghostTip", "1"); } catch {} toastMsg("👻 Ghost of your best run is on — beat the faint outline"); } coachReset(); liveReset(); try { if (mode !== "daily" && mode !== "event" && mode !== "practice" && !refVideo) { const b = JSON.parse(localStorage.getItem("dc.pb." + runKey()) || "[]"); pbBest = (b[0] && +b[0].pct) || 0; } } catch {}
+  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; cntLast = -1; dGoal = null; goalHit = 0; gradeTop = -1; gradeUp = null; pbChase = null; finStrong = null; comboRebuild = 0; pbBest = 0; limbSum.fill(0); limbCnt.fill(0); mvSum = {}; mvCnt = {}; firstHit = false; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; pictoSlot = -1; pictoAt = 0; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || mode === "event" || refVideo ? 1 : speedPref(); if (ghostStart(runKey()) && S.ghost !== false && !localStorage.getItem("dc.ghostTip")) { try { localStorage.setItem("dc.ghostTip", "1"); } catch {} toastMsg("👻 Ghost of your best run is on — beat the faint outline"); } coachReset(); liveReset(); try { if (mode !== "daily" && mode !== "event" && mode !== "practice" && !refVideo) { const b = JSON.parse(localStorage.getItem("dc.pb." + runKey()) || "[]"); pbBest = (b[0] && +b[0].pct) || 0; } } catch {}
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000 + (4 * 60000) / BPM(); cntLast = 1; cntArm((t0 - performance.now()) / 1000, BPM()); /* 4-beat count-in */ }
   $("#startBtn").textContent = "■ Stop"; document.body.style.setProperty("--spb", (60 / BPM()).toFixed(3) + "s"); document.body.classList.add("dancing");
 }
@@ -336,6 +336,56 @@ const want3d = () => S.coach3d !== false && quality !== "low" && !((navigator.de
 const maybe3d = () => { if (want3d()) coach3dLoad(); };
 addEventListener("load", () => setTimeout(() => (window.requestIdleCallback || setTimeout)(maybe3d), 2500));
 addEventListener("dc-settings", (e) => { if (e.detail === "stage") lastIdle = 0; if (e.detail === "coach3d" || e.detail === "look") { maybe3d(); applyLook(); } });
+function roundBox(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); }
+// Just Dance-style queue: the corner coach is the move you are on; these cards show the next poses before they start.
+function drawPictoRail(g, W, H, t, bpm, now) {
+  if (!playing || paused || refVideo) { pictoSlot = -1; return; }
+  if (t >= 0 && songLen(bpm) - t <= 5) return;
+  const slow = quality === "low" || (quality === "auto" && fpsE < 40);
+  const motion = !noFx() && !document.documentElement.classList.contains("calm") && !slow;
+  let nShow = slow ? 1 : 2;
+  if (t < 0 && Math.ceil((-t * bpm) / 60) > 3) nShow = 1; // "Ready?" is full-width; keep that moment clear
+  const slot = Math.floor((Math.max(0, t) * bpm) / 120);
+  if (pictoSlot < 0) { pictoSlot = slot; pictoAt = 0; }
+  else if (slot !== pictoSlot) { pictoSlot = slot; pictoAt = motion ? now : 0; }
+  if (!motion) pictoAt = 0;
+  const fade = pictoAt ? Math.min(1, (now - pictoAt) / 180) : 1;
+  const cw = Math.round(Math.min(136, Math.max(96, W * 0.19)));
+  const poseH = Math.round(cw * 0.9), labelH = 30, ch = poseH + labelH, gap = 8;
+  const x = W - cw - 10;
+  let y = 178;
+  const maxB = H - 168;
+  const hc = document.documentElement.classList.contains("hc");
+  const labels = [t < 0 ? "First" : "Next", "Then"];
+  g.save();
+  g.textAlign = "center"; g.textBaseline = "middle";
+  for (let i = 0; i < nShow; i++) {
+    if (y + ch > maxB) break;
+    const mv = MOVES[routine[(slot + 1 + i) % routine.length]];
+    if (!mv) break;
+    const a = (i === 0 ? 1 : 0.92) * (0.55 + 0.45 * fade);
+    g.globalAlpha = a;
+    g.fillStyle = "rgba(12,6,24,.84)";
+    roundBox(g, x, y, cw, ch, 14); g.fill();
+    g.lineWidth = hc || i === 0 ? 3 : 2;
+    g.strokeStyle = i === 0 ? "#FFD23F" : (hc ? "#fff" : "rgba(255,255,255,.5)");
+    g.stroke();
+    g.save();
+    g.translate(x, y);
+    g.beginPath(); g.rect(0, 0, cw, poseH); g.clip();
+    drawCoach(g, cw, poseH, mv.p, i === 0 ? "#FFD23F" : "#ffffff", true);
+    g.restore();
+    g.globalAlpha = a;
+    g.font = "800 12px system-ui";
+    g.fillStyle = i === 0 ? "#FFD23F" : "rgba(255,255,255,.8)";
+    g.fillText(labels[i], x + cw / 2, y + poseH + 9);
+    g.font = "700 13px system-ui";
+    g.fillStyle = "#fff";
+    g.fillText(mv.name, x + cw / 2, y + poseH + 22, cw - 12);
+    y += ch + gap;
+  }
+  g.restore();
+}
 function frameIssue(L) { if (!L) return "Can't see you. Step into view"; const v = (i) => (L[i]?.visibility ?? 1), y = (i) => L[i]?.y ?? 0;
   const sw = Math.abs((L[11]?.x ?? 0) - (L[12]?.x ?? 0)), cx = ((L[11]?.x ?? 0.5) + (L[12]?.x ?? 0.5) + (L[23]?.x ?? 0.5) + (L[24]?.x ?? 0.5)) / 4;
   if (v(0) < 0.4 || y(0) < 0.01) return "Step back so your head shows";
@@ -358,7 +408,7 @@ function frame(now) {
   const bt = playing ? t * (bpm / 60) : now / 600, stStill = still || document.documentElement.classList.contains("calm") || quality === "low" || (quality === "auto" && playing && fpsE < 40), stFx = !document.documentElement.classList.contains("noparticles");
   const c3 = want3d() && coach3dReady() ? coach3dRender(ref, playing ? t * (bpm / 60) : now / 600, playing && !paused ? fpsE : 60, vic ? "victory" : "dance", still) : null;
   drawStage(cg, 300, 300, bt, { still: stStill, fx: stFx }); if (c3) cg.drawImage(c3, 0, 0, 300, 300); else drawCoach(cg, 300, 300, ref, coachCol(), true);
-  { const mt = refVideo ? "Following your video" : `${MOVES[c.idx].name} — ${MOVES[c.idx].tip} · next: ${MOVES[c.next].name}`; if (mt !== moveTxt) { moveTxt = mt; $("#move").textContent = mt; } }
+  { const slotN = Math.floor((Math.max(0, t) * bpm) / 120), thenN = MOVES[routine[(slotN + 2) % routine.length]]?.name, nxt = MOVES[c.next]?.name; const mt = refVideo ? "Following your video" : `${MOVES[c.idx].name} — ${MOVES[c.idx].tip} · next: ${nxt}${thenN && thenN !== nxt ? ` · then: ${thenN}` : ""}`; if (mt !== moveTxt) { moveTxt = mt; $("#move").textContent = mt; } }
   if (!playing || refVideo || t < 0) lastMoveIdx = -1; else if (c.idx !== lastMoveIdx) { lastMoveIdx = c.idx; moveCall = { name: MOVES[c.idx].name, next: MOVES[c.next]?.name, at: now }; }
   const W = stage.width, H = stage.height;
   g.save(); g.translate(W, 0); g.scale(-1, 1);
@@ -380,6 +430,7 @@ function frame(now) {
   }
   g.restore();
   g.save(); g.translate(W - 170, 10); drawStage(g, 160, 160, bt, { still: true }); if (c3) g.drawImage(c3, 0, 0, 160, 160); else drawCoach(g, 160, 160, ref, coachCol(), true); g.restore();
+  drawPictoRail(g, W, H, t, bpm, now);
   if (playing && !paused && stream && !refVideo && (frameBad || (t < 0 && !lastPose)) && !noFx() && !document.documentElement.classList.contains("calm")) { const sh = H * 0.8, u = sh / 8, cx = W / 2, top = H * 0.1; g.save(); g.globalAlpha = 0.28 + 0.08 * Math.sin(now / 300); g.strokeStyle = "#B8FF00"; g.lineWidth = Math.max(3, u * 0.12); g.lineCap = g.lineJoin = "round"; g.setLineDash([u * 0.3, u * 0.22]); g.beginPath(); g.arc(cx, top + u * 0.55, u * 0.5, 0, Math.PI * 2); g.moveTo(cx - u * 1.1, top + u * 1.5); g.lineTo(cx + u * 1.1, top + u * 1.5); g.lineTo(cx + u * 0.8, top + u * 4); g.lineTo(cx - u * 0.8, top + u * 4); g.closePath(); g.moveTo(cx - u * 1.1, top + u * 1.5); g.lineTo(cx - u * 1.5, top + u * 3.8); g.moveTo(cx + u * 1.1, top + u * 1.5); g.lineTo(cx + u * 1.5, top + u * 3.8); g.moveTo(cx - u * 0.45, top + u * 4); g.lineTo(cx - u * 0.6, top + u * 7.9); g.moveTo(cx + u * 0.45, top + u * 4); g.lineTo(cx + u * 0.6, top + u * 7.9); g.stroke(); g.restore(); }
   if (playing && !paused && !refVideo && t < 0) { const left = Math.ceil((-t * bpm) / 60); if (cntLast < 0) { cntLast = 1; cntArm(-t, bpm); } const ph = noFx() ? 0 : ((-t * bpm) / 60) % 1; g.save(); if (!noFx() && !document.documentElement.classList.contains("calm") && left <= 3) { const R0 = Math.min(W, H); g.lineWidth = Math.max(3, R0 * 0.012); for (let k = 0; k < 2; k++) { const q = (1 - ph + k * 0.5) % 1; g.strokeStyle = (left <= 1 ? "rgba(184,255,0," : "rgba(255,210,63,") + (0.45 * (1 - q)).toFixed(3) + ")"; g.beginPath(); g.arc(W / 2, H / 2, R0 * (0.12 + q * 0.42), 0, Math.PI * 2); g.stroke(); } } g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(W, H) * (0.28 + ph * 0.08))}px system-ui`; g.fillStyle = left <= 1 ? "#B8FF00" : "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 16; g.fillText(left > 3 ? "Ready?" : String(left), W / 2, H / 2 + Math.min(W, H) * 0.1); g.font = "800 22px system-ui"; g.fillStyle = "rgba(255,255,255,.92)"; g.shadowBlur = 8; g.fillText(`♪ ${track.name}${runSpd !== 1 ? ` · ${runSpd}×` : ""}`, W / 2, H / 2 - Math.min(W, H) * 0.3, W - 32); { const c0 = coachAt(0, bpm), fm = /^ready$/i.test(MOVES[c0.idx]?.name) ? MOVES[c0.next] : MOVES[c0.idx]; if (fm) { g.font = "700 18px system-ui"; g.fillStyle = "#B8FF00"; g.fillText(`First up: ${fm.name}`, W / 2, H / 2 - Math.min(W, H) * 0.3 + 26, W - 32); } } g.shadowBlur = 16; g.font = "800 28px system-ui"; g.fillStyle = "#fff"; if (stream && !frameBad && lastPose) { g.fillStyle = "#B8FF00"; g.fillText("✓ You're in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); } else g.fillText(stream ? (frameBad || "Get in the frame!") : "Get in the frame!", W / 2, H / 2 + Math.min(W, H) * 0.26); g.restore(); }
   if (playing && !paused && frameBad && t >= 0) { g.save(); g.font = `800 ${Math.max(16, Math.round(Math.min(W, H) * 0.04))}px system-ui`; g.textAlign = "center"; const tx = "📷 " + frameBad, tw = g.measureText(tx).width + 28, bh = Math.max(34, Math.round(Math.min(W, H) * 0.07)), by = H * 0.58; g.fillStyle = "rgba(0,0,0,.72)"; g.beginPath(); g.roundRect ? g.roundRect(W / 2 - tw / 2, by - bh / 2, tw, bh, bh / 2) : g.rect(W / 2 - tw / 2, by - bh / 2, tw, bh); g.fill(); g.strokeStyle = "#FFD23F"; g.lineWidth = 2; g.stroke(); g.fillStyle = "#FFD23F"; g.textBaseline = "middle"; g.fillText(tx, W / 2, by + 1); g.restore(); }
