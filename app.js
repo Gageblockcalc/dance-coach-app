@@ -344,7 +344,7 @@ function drawStarMeter(g, W, t, now) {
   if (!playing || paused || refVideo || !stream || t < 0 || n < 10) return;
   const sp = (sum / n) * 100, th = [35, 60, 80], lo = [0, 35, 60];
   const fx = !noFx() && !document.documentElement.classList.contains("calm");
-  const r = 13, gap = 32, x0 = 16 + r, y = 84;
+  const r = 13, gap = 32, x0 = 16 + r, y = 124;
   g.save();
   for (let i = 0; i < 3; i++) {
     const f = Math.max(0, Math.min(1, (sp - lo[i]) / (th[i] - lo[i])));
