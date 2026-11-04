@@ -181,12 +181,13 @@ $("#fileIn").onchange = async (e) => {
 function start() {
   if (!stream && !refVideo && !start.nudged) { start.nudged = true; toastMsg("📷 Turn on camera to get scored"); const cb = $("#camBtn"); if (cb && !noFx()) { cb.classList.remove("cam-nudge"); void cb.offsetWidth; cb.classList.add("cam-nudge"); setTimeout(() => cb.classList.remove("cam-nudge"), 1600); } }
   paused = false; document.body.classList.remove("paused");
-  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; cntLast = -1; dGoal = null; goalHit = 0; gradeTop = -1; gradeUp = null; pbChase = null; finStrong = null; comboRebuild = 0; pbBest = 0; limbSum.fill(0); limbCnt.fill(0); mvSum = {}; mvCnt = {}; firstHit = false; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; pictoSlot = -1; pictoAt = 0; starGot = 0; starPop = [0, 0, 0]; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || mode === "event" || refVideo ? 1 : speedPref(); if (ghostStart(runKey()) && S.ghost !== false && !localStorage.getItem("dc.ghostTip")) { try { localStorage.setItem("dc.ghostTip", "1"); } catch {} toastMsg("👻 Ghost of your best run is on — beat the faint outline"); } coachReset(); liveReset(); try { if (mode !== "daily" && mode !== "event" && mode !== "practice" && !refVideo) { const b = JSON.parse(localStorage.getItem("dc.pb." + runKey()) || "[]"); pbBest = (b[0] && +b[0].pct) || 0; } } catch {}
+  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; cntLast = -1; dGoal = null; goalHit = 0; gradeTop = -1; gradeUp = null; pbChase = null; finStrong = null; comboRebuild = 0; pbBest = 0; limbSum.fill(0); limbCnt.fill(0); mvSum = {}; mvCnt = {}; firstHit = false; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; scorePops.length = 0; pictoSlot = -1; pictoAt = 0; starGot = 0; starPop = [0, 0, 0]; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || mode === "event" || refVideo ? 1 : speedPref(); if (ghostStart(runKey()) && S.ghost !== false && !localStorage.getItem("dc.ghostTip")) { try { localStorage.setItem("dc.ghostTip", "1"); } catch {} toastMsg("👻 Ghost of your best run is on — beat the faint outline"); } coachReset(); liveReset(); try { if (mode !== "daily" && mode !== "event" && mode !== "practice" && !refVideo) { const b = JSON.parse(localStorage.getItem("dc.pb." + runKey()) || "[]"); pbBest = (b[0] && +b[0].pct) || 0; } } catch {}
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000 + (4 * 60000) / BPM(); cntLast = 1; cntArm((t0 - performance.now()) / 1000, BPM()); /* 4-beat count-in */ }
   $("#startBtn").textContent = "■ Stop"; document.body.style.setProperty("--spb", (60 / BPM()).toFixed(3) + "s"); document.body.classList.add("dancing");
 }
 let lastResult = null, lastBoard = null;
 let combo = 0, maxCombo = 0, judged = {}, beatI = -1, beatS = 0, beatN2 = 0, hit = null; // per-beat judgement + combo
+let scorePops = []; // juice only: rising +1000 / +500 / +200. Does not affect match %, grades, or stars.
 const noFx = () => RM.matches || document.documentElement.classList.contains("reduce");
 const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : mode === "practice" ? "practice" : mode === "event" ? "event-" + (eventPlan()?.key || "") : "song-" + track.id + (runSpd !== 1 ? "@" + runSpd : "");
 window.dcGhostOn = () => S.ghost !== false;
@@ -330,6 +331,53 @@ let firstHit = false;
 const LIMB_NAMES = ["left upper arm", "left forearm", "right upper arm", "right forearm", "left thigh", "left lower leg", "right thigh", "right lower leg"];
 function burst(x, y) { for (let i = 0, k = partN(); i < k; i++) { const a = Math.random() * 6.283, v = 2 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 3, life: 1, c: ["#B8FF00", "#FFD23F", "#ff4fd8", "#7fd3ff"][i % 4] }); } }
 function drawParts(g) { if (!parts.length) return; for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; g.fillRect(p.x, p.y, 8, 8); } g.globalAlpha = 1; parts = parts.filter((p) => p.life > 0); }
+// Just Dance-style floating beat points. Display only — thresholds and totals stay in the beat judge above.
+const POP_PTS = { Perfect: 1000, Great: 500, Good: 200 };
+const popCheap = () => quality === "low" || (quality === "auto" && fpsE < 40);
+const popStill = () => noFx() || document.documentElement.classList.contains("calm");
+function pushScorePop(j, now) {
+  const pts = POP_PTS[j];
+  if (!pts) return; // Miss: judgment text and SFX only, no points pop
+  const cheap = popCheap(), still = popStill();
+  if (cheap || still) scorePops.length = 0; // one pop when motion or fill-rate is limited
+  else if (scorePops.length > 3) scorePops.shift();
+  const i = scorePops.length;
+  scorePops.push({ j, pts, at: now, still, cheap, x: still || cheap ? 0 : (i % 2 ? 100 : -100), life: still ? 700 : 920 });
+}
+function drawScorePops(g, W, H, now) {
+  if (!playing || paused || !scorePops.length) return;
+  g.save(); g.textAlign = "center"; g.textBaseline = "middle";
+  for (const p of scorePops) {
+    const k = (now - p.at) / p.life;
+    if (k < 0 || k >= 1) continue;
+    const rise = p.still ? 0 : Math.min(120, H * 0.12) * (1 - (1 - k) * (1 - k));
+    const alpha = k < 0.55 ? 1 : (1 - k) / 0.45;
+    const sc = p.still || p.cheap ? 1 : 1 + 0.16 * Math.max(0, 1 - k * 4);
+    g.save();
+    g.globalAlpha = Math.max(0, Math.min(1, alpha));
+    g.translate(W / 2 + p.x, H * 0.58 - rise);
+    g.scale(sc, sc);
+    const label = "+" + p.pts, fs = Math.round(Math.min(W, H) * 0.09);
+    g.font = `900 ${fs}px system-ui`; g.lineJoin = "round"; g.miterLimit = 2;
+    g.lineWidth = Math.max(6, fs * 0.14); g.strokeStyle = "rgba(0,0,0,.72)"; g.strokeText(label, 0, 0);
+    g.fillStyle = JCOL(p.j);
+    if (!p.cheap) { g.shadowColor = "rgba(0,0,0,.85)"; g.shadowBlur = 12; }
+    g.fillText(label, 0, 0);
+    g.restore();
+  }
+  g.restore();
+  scorePops = scorePops.filter((p) => now - p.at < p.life);
+}
+if (new URLSearchParams(location.search).get("juice") === "1") {
+  // Local preview only (?juice=1). Does not change pose scores; used to screenshot pops without a camera.
+  window.dcShowBeat = (j) => {
+    const now = performance.now();
+    const before = { sum, n, perfect, combo, maxCombo, judged: { ...judged } };
+    hit = { j, at: now, combo: j === "Miss" ? 0 : 1, mile: false, warm: false, fix: null, broke: 0, first: false, almost: false, rebuild: false };
+    if (POP_PTS[j]) pushScorePop(j, now);
+    return { before, after: { sum, n, perfect, combo, maxCombo, judged: { ...judged } }, pops: scorePops.map((p) => ({ j: p.j, pts: p.pts, still: p.still, cheap: p.cheap, x: p.x })) };
+  };
+}
 let lastIdle = 0, moveTxt = "";
 const SONG_BEATS = 96; const songLen = (bpm) => (SONG_BEATS * 60) / bpm; // every song has an ending (~48-62 s) so runs have a clear goal
 let victoryUntil = 0;
@@ -462,7 +510,7 @@ function frame(now) {
   if (playing && !paused && lastPose && stream && (refVideo || t >= 0)) {
     const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
     if (u && !refVideo) { const lag = 30 / bpm; coachAdd(u, ref, refV, t, songLen(bpm), coachAt(t - lag, bpm).pose, coachAt(t + lag, bpm).pose); if (S.liveTips !== false) { const cue = coachLive(u, ref, now); if (cue) { status("💡 " + cue); liveTip = { text: String(cue).replace(/^Coach tip:\s*/i, ""), at: now }; } } if (s0 != null && t >= 0) { noteMove(c.idx, s0); if (!/^ready$/i.test(MOVES[c.idx]?.name)) { mvSum[c.idx] = (mvSum[c.idx] || 0) + s0; mvCnt[c.idx] = (mvCnt[c.idx] || 0) + 1; } } }
-    if (s != null && !refVideo) { const bI = Math.floor((t * bpm) / 60); if (bI !== beatI) { if (beatI >= 0 && beatN2) { const av = beatS / beatN2, j = av > 0.8 ? "Perfect" : av > 0.65 ? "Great" : av > 0.5 ? "Good" : "Miss"; judged[j]++; const warm = j === "Miss" && beatI < 4, broke = j === "Miss" && !warm && combo >= 5 ? combo : 0; combo = j === "Miss" ? (warm ? combo : 0) : combo + 1; maxCombo = Math.max(maxCombo, combo); const mile = j !== "Miss" && MILES.includes(combo); let fix = null; if (j === "Miss") { let lo = 1; limbM.forEach((m, k) => { if (m != null && m < 0.45 && m < lo) { lo = m; fix = LIMB_NAMES[k]; } }); } if (j === "Perfect") perfRing = { at: now }; hit = { j, at: now, combo, mile, warm, fix, broke, first: j !== "Miss" && !firstHit, almost: j === "Great" && av > 0.74, rebuild: false }; if (broke && !comboRebuild) comboRebuild = 1; else if (comboRebuild === 1 && j !== "Miss") { comboRebuild = 2; hit.rebuild = true; } if (broke) haptic("heavy"); if (hit.first) { firstHit = true; if (!mile && !noFx()) burst(stage.width / 2, stage.height * 0.3); } if (mile) { milestoneSound(); haptic("medium"); rumble(0.5, 120); if (!noFx()) burst(stage.width / 2, stage.height * 0.3); } else hitSound(j); } beatI = bI; beatS = beatN2 = 0; } beatS += s; beatN2++; }
+    if (s != null && !refVideo) { const bI = Math.floor((t * bpm) / 60); if (bI !== beatI) { if (beatI >= 0 && beatN2) { const av = beatS / beatN2, j = av > 0.8 ? "Perfect" : av > 0.65 ? "Great" : av > 0.5 ? "Good" : "Miss"; judged[j]++; const warm = j === "Miss" && beatI < 4, broke = j === "Miss" && !warm && combo >= 5 ? combo : 0; combo = j === "Miss" ? (warm ? combo : 0) : combo + 1; maxCombo = Math.max(maxCombo, combo); const mile = j !== "Miss" && MILES.includes(combo); let fix = null; if (j === "Miss") { let lo = 1; limbM.forEach((m, k) => { if (m != null && m < 0.45 && m < lo) { lo = m; fix = LIMB_NAMES[k]; } }); } if (j === "Perfect") perfRing = { at: now }; hit = { j, at: now, combo, mile, warm, fix, broke, first: j !== "Miss" && !firstHit, almost: j === "Great" && av > 0.74, rebuild: false }; if (j !== "Miss") pushScorePop(j, now); if (broke && !comboRebuild) comboRebuild = 1; else if (comboRebuild === 1 && j !== "Miss") { comboRebuild = 2; hit.rebuild = true; } if (broke) haptic("heavy"); if (hit.first) { firstHit = true; if (!mile && !noFx()) burst(stage.width / 2, stage.height * 0.3); } if (mile) { milestoneSound(); haptic("medium"); rumble(0.5, 120); if (!noFx()) burst(stage.width / 2, stage.height * 0.3); } else hitSound(j); } beatI = bI; beatS = beatN2 = 0; } beatS += s; beatN2++; }
     if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
   }
   drawParts(g);
@@ -482,6 +530,7 @@ function frame(now) {
   if (playing && !paused && !refVideo && (mode === "daily" || mode === "event") && t >= 0) { if (dGoal == null) { try { dGoal = mode === "event" ? (eventPlan()?.goal || EVENT_GOAL) : dailyRoutine().goal; } catch { dGoal = 0; } } if (dGoal) { const sp = n > 0 ? Math.round((sum / n) * 100) : 0, ok = sp >= dGoal; g.save(); g.textAlign = "left"; g.font = "800 15px system-ui"; g.fillStyle = ok ? "#FFD23F" : "rgba(255,255,255,.85)"; g.shadowColor = "#000"; g.shadowBlur = 4; g.fillText(`🏆 ${mode === "event" ? "Event" : "Daily"} goal ${dGoal}% · you ${sp}%${ok ? " ✓" : ""}`, 16, H - 72, W - 32); const bw = Math.min(220, W - 32); g.shadowBlur = 0; g.fillStyle = "rgba(255,255,255,.2)"; g.fillRect(16, H - 64, bw, 6); g.fillStyle = ok ? "#FFD23F" : "#4FD1C5"; g.fillRect(16, H - 64, bw * Math.min(1, sp / dGoal), 6); g.restore(); if (ok && !goalHit) goalHit = performance.now(); if (goalHit && !noFx()) { const ga = (performance.now() - goalHit) / 1000; if (ga < 1.2) { g.save(); g.globalAlpha = Math.max(0, 1 - ga / 1.2); g.textAlign = "center"; g.font = `900 ${Math.round(Math.min(56, W / 8))}px system-ui`; g.fillStyle = "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText("🏆 Goal!", W / 2, H * 0.38); g.restore(); } } } }
   if (!finStrong && playing && !paused && !refVideo && t > 6 && songLen(bpm) - t <= 5 && songLen(bpm) - t > 0) finStrong = { at: now }; if (finStrong && finStrong.at && playing && !paused && !refVideo && now - finStrong.at < 1400) { const k = now - finStrong.at; g.save(); g.globalAlpha = noFx() ? 1 : Math.min(1, (1400 - k) / 300); g.textAlign = "center"; g.font = "900 30px system-ui"; g.fillStyle = "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 10; g.translate(W / 2, H * 0.3); if (!noFx()) { const sc = 1 + 0.18 * Math.max(0, 1 - k / 300); g.scale(sc, sc); } g.fillText("💪 Finish strong!", 0, 0, W - 32); g.restore(); }
   if (pbChase && pbChase.at && playing && !paused && !refVideo && now - pbChase.at < 1200) { const k = now - pbChase.at; g.save(); g.globalAlpha = noFx() ? 1 : Math.min(1, (1200 - k) / 250); g.textAlign = "center"; g.font = "900 28px system-ui"; g.fillStyle = "#FFD23F"; g.shadowColor = "#000"; g.shadowBlur = 10; g.translate(W / 2, H * 0.5); if (!noFx()) { const sc = 1 + 0.15 * Math.max(0, 1 - k / 300); g.scale(sc, sc); } g.fillText(`🎯 ${pbChase.d}% from your best`, 0, 0, W - 32); g.restore(); } if (gradeUp && (now - gradeUp.at > 1100 || !playing || paused || refVideo || songLen(bpm) - t <= 5)) gradeUp = null; if (gradeUp) { const k = now - gradeUp.at; g.save(); g.globalAlpha = noFx() ? 1 : Math.min(1, (1100 - k) / 250); g.textAlign = "center"; g.font = "900 30px system-ui"; g.fillStyle = gradeUp.g[1]; g.shadowColor = "#000"; g.shadowBlur = 10; g.fillText(`⬆️ Grade ${gradeUp.g[0]}!${gradeUp.g[0][0] === "S" ? " 👑" : ""}`, W / 2, H * 0.62, W - 32); g.restore(); }
+  drawScorePops(g, W, H, now);
   if (playing && paused) { g.save(); g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(0, 0, W, H); g.font = "900 56px system-ui"; g.textAlign = "center"; g.fillStyle = "#fff"; g.fillText("⏸ Paused", W / 2, H / 2); g.font = "600 24px system-ui"; g.fillStyle = "rgba(255,255,255,.85)"; g.fillText("Tap ▶ Resume or press P / Space", W / 2, H / 2 + 44); { let info = refVideo ? "" : `♪ ${track.name}`; if (!refVideo && t >= 0) { const c1 = coachAt(t, bpm), cm = MOVES[c1.idx]?.name, nm = MOVES[c1.next]?.name; if (cm && !/^ready$/i.test(cm)) info += ` · ${cm}`; else if (nm && !/^ready$/i.test(nm)) info += ` · next: ${nm}`; } if (!refVideo && t >= 0) { const lf = Math.max(0, Math.ceil(songLen(bpm) - t)); info += ` · ${Math.floor(lf / 60)}:${String(lf % 60).padStart(2, "0")} left`; } if (n > 0 && t >= 0) info += ` · grade ${GRADE(Math.round((sum / n) * 100))[0]}`; if (info) { g.font = "700 20px system-ui"; g.fillStyle = "rgba(255,255,255,.75)"; g.fillText(info, W / 2, H / 2 + 76, W - 32); } } g.restore(); }
 }
 requestAnimationFrame(frame);
