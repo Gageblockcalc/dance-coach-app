@@ -17,7 +17,7 @@ initControls(); window.dcShowControls = showControls; initShop(); initShare();
 for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VERSION || "";
 import { initTV, isTV, initTips, showTips, ghostStart, ghostRecord, ghostDraw, finishRun, boardHTML } from "./features.js";
 import { coachReset, coachAdd, coachReport, coachHTML, liveReset, coachLive } from "./coach.js";
-import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS, goldWindows, goldHit } from "./moves.js";
+import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS, goldWindows, goldHit, comboMultiplier } from "./moves.js";
 import { drawStage } from "./stages.js";
 import { coach3dLoad, coach3dReady, coach3dRender, applyLook, getLook } from "./coach3d.js";
 import "./m2e-ui.js";
@@ -97,6 +97,7 @@ function milestoneSound() { if (!ac || S.sounds === false) return; const t = ac.
 const GRADE = (pct) => (pct >= 90 ? ["S", "#FFD23F"] : pct >= 80 ? ["A", "#B8FF00"] : pct >= 65 ? ["B", "#7fd3ff"] : pct >= 50 ? ["C", "#ffb86b"] : ["D", "#ff8a8a"]);
 let comboRebuild = 0, finStrong = null, pbChase = null, pbBest = 0, gradeTop = -1, gradeUp = null, dGoal = null, goalHit = 0;
 let starGot = 0, starPop = [0, 0, 0];
+let multShown = 1, multPop = 0, multAnn = 0, maxAnn = false; // badge juice only — never fed into scoring
 let cntLast = -1, cntBus = null, perfRing = null, liveTip = null, moveCall = null, lastMoveIdx = -1, pictoSlot = -1, pictoAt = 0;
 function cntCancel() { if (cntBus) { try { cntBus.disconnect(); } catch (e) {} cntBus = null; } }
 function countBeep(go, at) { window.dcPerf.beeps = (window.dcPerf.beeps || 0) + 1; blip(at, hz(track.root + (go ? 72 : 67)), go ? 0.25 : 0.12, "square", go ? 0.07 : 0.05, cntBus, 3000); }
@@ -182,17 +183,22 @@ $("#fileIn").onchange = async (e) => {
 function start() {
   if (!stream && !refVideo && !start.nudged) { start.nudged = true; toastMsg("📷 Turn on camera to get scored"); const cb = $("#camBtn"); if (cb && !noFx()) { cb.classList.remove("cam-nudge"); void cb.offsetWidth; cb.classList.add("cam-nudge"); setTimeout(() => cb.classList.remove("cam-nudge"), 1600); } }
   paused = false; document.body.classList.remove("paused");
-  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; cntLast = -1; dGoal = null; goalHit = 0; gradeTop = -1; gradeUp = null; pbChase = null; finStrong = null; comboRebuild = 0; pbBest = 0; limbSum.fill(0); limbCnt.fill(0); mvSum = {}; mvCnt = {}; firstHit = false; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; scorePops.length = 0; goldAwarded = 0; goldFx = null; goldHold = false; buildGold(); pictoSlot = -1; pictoAt = 0; starGot = 0; starPop = [0, 0, 0]; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || mode === "event" || refVideo ? 1 : speedPref(); if (ghostStart(runKey()) && S.ghost !== false && !localStorage.getItem("dc.ghostTip")) { try { localStorage.setItem("dc.ghostTip", "1"); } catch {} toastMsg("👻 Ghost of your best run is on — beat the faint outline"); } coachReset(); liveReset(); try { if (mode !== "daily" && mode !== "event" && mode !== "practice" && !refVideo) { const b = JSON.parse(localStorage.getItem("dc.pb." + runKey()) || "[]"); pbBest = (b[0] && +b[0].pct) || 0; } } catch {}
+  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; cntLast = -1; dGoal = null; goalHit = 0; gradeTop = -1; gradeUp = null; pbChase = null; finStrong = null; comboRebuild = 0; pbBest = 0; limbSum.fill(0); limbCnt.fill(0); mvSum = {}; mvCnt = {}; firstHit = false; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; scorePops.length = 0; goldAwarded = 0; goldFx = null; goldHold = false; buildGold(); pictoSlot = -1; pictoAt = 0; starGot = 0; starPop = [0, 0, 0]; multShown = 1; multPop = 0; multAnn = 0; maxAnn = false; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || mode === "event" || refVideo ? 1 : speedPref(); if (ghostStart(runKey()) && S.ghost !== false && !localStorage.getItem("dc.ghostTip")) { try { localStorage.setItem("dc.ghostTip", "1"); } catch {} toastMsg("👻 Ghost of your best run is on — beat the faint outline"); } coachReset(); liveReset(); try { if (mode !== "daily" && mode !== "event" && mode !== "practice" && !refVideo) { const b = JSON.parse(localStorage.getItem("dc.pb." + runKey()) || "[]"); pbBest = (b[0] && +b[0].pct) || 0; } } catch {}
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000 + (4 * 60000) / BPM(); cntLast = 1; cntArm((t0 - performance.now()) / 1000, BPM()); /* 4-beat count-in */ }
   $("#startBtn").textContent = "■ Stop"; document.body.style.setProperty("--spb", (60 / BPM()).toFixed(3) + "s"); document.body.classList.add("dancing");
 }
 let lastResult = null, lastBoard = null;
 let combo = 0, maxCombo = 0, judged = {}, beatI = -1, beatS = 0, beatN2 = 0, hit = null; // per-beat judgement + combo
-let scorePops = []; // juice only: rising +1000 / +500 / +200, or +2000 on a Gold Move. Does not affect match %, grades, or stars.
+let scorePops = []; // juice only: rising +1000 / +500 / +200, or +2000 on a Gold Move. Does not affect match %, grades, or stars. The combo multiplier badge does not scale these numbers.
 let goldStarts = [], goldAt = new Map(), goldAwarded = 0, goldFx = null, goldHold = false, goldFreezeMs = 0;
 const noFx = () => RM.matches || document.documentElement.classList.contains("reduce");
 const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : mode === "practice" ? "practice" : mode === "event" ? "event-" + (eventPlan()?.key || "") : "song-" + track.id + (runSpd !== 1 ? "@" + runSpd : "");
 window.dcGhostOn = () => S.ghost !== false;
+if (new URLSearchParams(location.search).get("juice") === "1") {
+  try { localStorage.setItem("dc.onboarded", "1"); localStorage.setItem("dc.tips", "1"); } catch {}
+  const ob = document.getElementById("onboard"); if (ob) ob.hidden = true;
+  S.banter = false; S.smack = false; S.voice = false; // preview only, not saved — keeps the coach bubble off the stage shot
+}
 initTips(); initTV(moveFocus); document.documentElement.classList.toggle("big", !!S.big); document.getElementById("replayOb")?.addEventListener("click", () => { const ob = document.getElementById("onboard"); new MutationObserver((m, o) => { if (ob.hidden) { o.disconnect(); setTimeout(showTips, 400); } }).observe(ob, { attributes: true, attributeFilter: ["hidden"] }); });
 let mvSum = {}, mvCnt = {}, mvFocus = null;
 function moveHTML() { mvFocus = null; const ks = Object.keys(mvCnt).filter((k) => mvCnt[k] >= 10 && MOVES[k]); if (ks.length < 2) return ""; const av = (k) => mvSum[k] / mvCnt[k]; ks.sort((a, b) => av(b) - av(a)); const h = ks[0], l = ks[ks.length - 1], hi = av(h), lo = av(l), pc = (v) => Math.round(Math.max(0, Math.min(1, v)) * 100); return `<div class="note movefocus">🕺 Strongest move: <b>${MOVES[h].name}</b> (${pc(hi)}%)${lo < 0.7 || lo < hi - 0.08 ? ((mvFocus = +l), ` · 🎯 Practice next: <b>${MOVES[l].name}</b> (${pc(lo)}%)`) : ""}</div>${mvFocus != null && !refVideo && mode !== "event" ? `<button id="practiceNextBtn" class="b-pink" style="width:100%;margin-top:8px;font-size:17px;font-weight:900">🎯 Practice: ${MOVES[l].name} →</button>` : ""}`; }
@@ -229,7 +235,7 @@ function shareText(r) { const sn = r.song ? ` on ${r.song}` : "", cb = r.combo >
 window.dcShareText = () => (lastResult ? shareText(lastResult) : ""); window.dcShare = share; window.dcCardFor = (r) => { lastResult = r; return resultCard(); }; // also used by tests
 // ---- Shared AI buddy (web only; TODO native: needs data-safety/privacy update before shipping in the APK) ----
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-const BUDDY_FACTS = 'Dance Coach facts. SCORING: camera tracks your pose on this device (never uploaded) and compares body angles to the coach; Perfect >80%, Great >65%, Good >50%. End of song: 3 stars at 80%+, 2 at 60%+, 1 at 35%+; grade S 90%+, A 80%+, B 65%+, C 50%+, else D. Combo milestones at 10, 25, 50 and 100 beats in a row. GOLD MOVES: twice a song, the biggest pose near each section hit is a Gold Move. Perfect or Great on that beat shows a gold GOLD MOVE callout and a +2000 pop. Good or Miss does not. The pop is for show only and does not change match percent, grade, stars, or combo. DIFFICULTY (Settings): Easy is more forgiving, Normal, Hard is stricter. ROUTINE OF THE DAY: a new 9-move routine every day; dancing it keeps your daily streak; weekly goal is 5 days. COINS (website only, just for fun, no real money): earned from daily streak, first dance of the day, finishing songs, 3 stars, daily/weekly challenge, level-ups, achievements; free chest every 4 hours; spend coins in the Settings shop on coach outfits and stage themes. CONTROLS: Touch: tap Start/Stop, Turn on camera, Record clip; long-press ? for the guide. Keyboard: Space start/pause, Esc back, arrows/Tab move, Enter select, hold H for the controls guide. Controller: A select, B back/pause, Start (Menu/Options/+) start or pause, Select (View/Share/-) settings, hold Select for the controls guide, LB/RB change song, D-pad moves. Steering wheels are ignored. TIPS: prop the phone up, step back so your whole body shows, good lighting.';
+const BUDDY_FACTS = 'Dance Coach facts. SCORING: camera tracks your pose on this device (never uploaded) and compares body angles to the coach; Perfect >80%, Great >65%, Good >50%. End of song: 3 stars at 80%+, 2 at 60%+, 1 at 35%+; grade S 90%+, A 80%+, B 65%+, C 50%+, else D. Combo milestones at 10, 25, 50 and 100 beats in a row. COMBO MULTIPLIER (show only): a badge reads ×1, ×2 at 10 in a row, ×4 at 25, and ×8 at 50. A 100 combo stays ×8 and reads MAX. It does not change match percent, grade, stars, score pops, or the combo count. GOLD MOVES: twice a song, the biggest pose near each section hit is a Gold Move. Perfect or Great on that beat shows a gold GOLD MOVE callout and a +2000 pop. Good or Miss does not. The pop is for show only and does not change match percent, grade, stars, or combo. DIFFICULTY (Settings): Easy is more forgiving, Normal, Hard is stricter. ROUTINE OF THE DAY: a new 9-move routine every day; dancing it keeps your daily streak; weekly goal is 5 days. COINS (website only, just for fun, no real money): earned from daily streak, first dance of the day, finishing songs, 3 stars, daily/weekly challenge, level-ups, achievements; free chest every 4 hours; spend coins in the Settings shop on coach outfits and stage themes. CONTROLS: Touch: tap Start/Stop, Turn on camera, Record clip; long-press ? for the guide. Keyboard: Space start/pause, Esc back, arrows/Tab move, Enter select, hold H for the controls guide. Controller: A select, B back/pause, Start (Menu/Options/+) start or pause, Select (View/Share/-) settings, hold Select for the controls guide, LB/RB change song, D-pad moves. Steering wheels are ignored. TIPS: prop the phone up, step back so your whole body shows, good lighting.';
 function buddyCtx() { try { const sc = playing ? (paused ? "paused" : "dancing") : !$("#settings").hidden ? "settings" : !$("#result").hidden ? "results" : "home";
   window.OppsBuddy?.setContext({ facts: BUDDY_FACTS, context: `Screen: ${sc}. Mode: ${mode}. Song: ${track.name}. Difficulty: ${localStorage.getItem("dc.diff") || "normal"}. Last score: ${lastResult ? lastResult.pct + "% " + lastResult.stars + " stars" : "none yet"}.` }); } catch {} }
 // Burst guard: hub may answer 200 {source:'slow'} (or 429 slow_down). Show a friendly line instead of a blank/odd reply.
@@ -416,7 +422,32 @@ if (new URLSearchParams(location.search).get("juice") === "1") {
     }
     return { beat, starts: goldStarts.slice(), names: goldStarts.map((b) => MOVES[routine[(b / 2) % routine.length]]?.name), mode };
   };
+  // Freeze a mid-song frame with a chosen combo so the multiplier badge can be checked without a camera.
+  // goldHold makes Stop drop the fake score. Does not run the beat judge, so combo counting stays untouched.
+  window.dcPreviewCombo = (count = 100) => {
+    const streak = Math.max(0, count | 0);
+    buildGold();
+    const bpm = BPM(), beat = 12; // clear of the first Gold Move window
+    goldFreezeMs = beat * (60 / bpm) * 1000;
+    goldHold = true; playing = true; paused = false; refVideo = null;
+    document.body.classList.add("dancing"); $("#startBtn").textContent = "■ Stop"; $("#result").hidden = true;
+    t0 = performance.now() - goldFreezeMs;
+    sum = 82; n = 100; perfect = 40; smooth = 0.88; // display only — stop() drops this while goldHold is set
+    combo = maxCombo = streak;
+    multShown = comboMultiplier(streak); multPop = 0; multAnn = 0; maxAnn = false;
+    starGot = 3; starPop = [0, 0, 0];
+    judged = { Perfect: 40, Great: 10, Good: 4, Miss: 1 };
+    const now = performance.now(), c = coachAt(beat * 60 / bpm, bpm);
+    lastMoveIdx = c.idx;
+    moveCall = { name: MOVES[c.idx].name, next: MOVES[c.next]?.name, at: now - 5000 };
+    scorePops.length = 0; goldFx = null; hit = null; goldAwarded = 0;
+    return { combo: streak, mult: comboMultiplier(streak), max: streak >= 100, sum, n, perfect, judged: { ...judged } };
+  };
+  const comboQ = new URLSearchParams(location.search).get("combo");
+  if (comboQ != null && comboQ !== "") queueMicrotask(() => window.dcPreviewCombo(Number(comboQ))); // after SONG_BEATS is initialized
 }
+window.dcComboMult = comboMultiplier;
+window.dcComboHud = () => ({ combo, mult: comboMultiplier(combo), max: combo >= 100, still: popStill() || popCheap(), cheap: popCheap() });
 let lastIdle = 0, moveTxt = "";
 const SONG_BEATS = 96; const songLen = (bpm) => (SONG_BEATS * 60) / bpm; // every song has an ending (~48-62 s) so runs have a clear goal
 function buildGold() {
@@ -467,6 +498,59 @@ const maybe3d = () => { if (want3d()) coach3dLoad(); };
 addEventListener("load", () => setTimeout(() => (window.requestIdleCallback || setTimeout)(maybe3d), 2500));
 addEventListener("dc-settings", (e) => { if (e.detail === "stage") lastIdle = 0; if (e.detail === "coach3d" || e.detail === "look") { maybe3d(); applyLook(); } });
 function roundBox(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); }
+// Just Dance-style combo multiplier. Display only — comboMultiplier() must not touch match %, grades, stars, pops, or the combo counter.
+let comboLive = null;
+function announceCombo(mult, count) {
+  if (!comboLive) {
+    comboLive = document.createElement("div");
+    comboLive.id = "comboMultLive";
+    comboLive.setAttribute("role", "status");
+    comboLive.setAttribute("aria-live", "polite");
+    comboLive.style.cssText = "position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0";
+    document.body.append(comboLive);
+  }
+  const msg = count >= 100 ? `Combo multiplier times ${mult}. Max streak, ${count} in a row. For show only.` : count >= 10 ? `Combo multiplier times ${mult}. On fire, ${count} in a row.` : `Combo multiplier times ${mult}.`;
+  if (comboLive.textContent !== msg) comboLive.textContent = msg;
+}
+function drawComboHud(g, W, H, t, now) {
+  if (!playing || paused || refVideo || t < 0) return;
+  const mult = comboMultiplier(combo);
+  const maxed = combo >= 100;
+  if (mult > multShown) { multShown = mult; multPop = now; } else multShown = mult;
+  if (!maxed) maxAnn = false;
+  if (mult !== multAnn || (maxed && !maxAnn)) { multAnn = mult; maxAnn = maxed; announceCombo(mult, combo); }
+  const still = popStill() || popCheap();
+  const cb = CBM();
+  const col = mult >= 8 ? (cb ? "#F0E442" : "#ff4fd8") : mult >= 4 ? (cb ? "#E69F00" : "#FFD23F") : mult >= 2 ? (cb ? "#56B4E9" : "#B8FF00") : (cb ? "#FFFFFF" : "#7fd3ff");
+  const k = !multPop || still ? 1 : Math.min(1, (now - multPop) / 420);
+  const sc = still || k >= 1 ? 1 : 1 + 0.16 * Math.sin(Math.PI * k);
+  // Under the star meter and above the centered score pops / move-name flash, so a Gold +2000 does not cover it.
+  const bw = Math.round(Math.min(250, Math.max(214, W * 0.34)));
+  const bh = Math.round(Math.min(132, Math.max(118, Math.min(W, H) * 0.155)));
+  const x = 14, y = 152, cx = x + bw / 2;
+  const sub = maxed ? `MAX · ${combo}` : combo >= 10 ? `On fire · ${combo}` : combo > 0 ? `${combo} in a row` : "Hit the beat";
+  g.save();
+  g.translate(cx, y + bh / 2); g.scale(sc, sc); g.translate(-cx, -(y + bh / 2));
+  g.fillStyle = "rgba(12,6,24,.88)";
+  roundBox(g, x, y, bw, bh, 18); g.fill();
+  g.lineWidth = document.documentElement.classList.contains("hc") ? 5 : 4;
+  g.strokeStyle = col;
+  if (!still && mult >= 2) { g.shadowColor = col; g.shadowBlur = 12; }
+  g.stroke();
+  g.shadowBlur = 0;
+  g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
+  const fs = Math.round(bh * 0.56);
+  g.font = `900 ${fs}px system-ui`;
+  g.lineWidth = Math.max(5, fs * 0.14); g.strokeStyle = "rgba(0,0,0,.82)";
+  g.strokeText("×" + mult, cx, y + bh * 0.38);
+  g.fillStyle = col; g.fillText("×" + mult, cx, y + bh * 0.38);
+  g.font = `800 ${Math.max(18, Math.round(bh * 0.24))}px system-ui`;
+  g.lineWidth = 4; g.strokeStyle = "rgba(0,0,0,.78)";
+  g.strokeText(sub, cx, y + bh * 0.76, bw - 18);
+  g.fillStyle = "#fff"; g.fillText(sub, cx, y + bh * 0.76, bw - 18);
+  g.restore();
+  if (window.dcPerf) window.dcPerf.mult = mult;
+}
 // Just Dance-style queue: the corner coach is the move you are on; these cards show the next poses before they start.
 // Just Dance-style live star meter: 3 stars fill mid-song toward the 35/60/80% end-of-song thresholds, popping with a chime when earned.
 function drawStarMeter(g, W, t, now) {
@@ -601,9 +685,10 @@ function frame(now) {
   drawParts(g);
   if (!playing && !stream && !refVideo && now > victoryUntil && !noFx() && !document.documentElement.classList.contains("calm")) { g.save(); g.globalCompositeOperation = "lighter"; ["255,79,216", "127,211,255", "184,255,0"].forEach((cl, k) => { const a = now / 2400 + k * 2.1, x = W / 2 + Math.cos(a) * W * 0.32, y = H * 0.45 + Math.sin(a * 1.3) * H * 0.22, r = Math.min(W, H) * 0.35, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${cl},${(0.1 + 0.04 * Math.sin(now / 500 + k)).toFixed(3)})`); gr.addColorStop(1, `rgba(${cl},0)`); g.fillStyle = gr; g.fillRect(0, 0, W, H); }); g.restore(); }
   if (playing && !paused && !refVideo && t >= 0 && !noFx() && !document.documentElement.classList.contains("calm")) { const bt = (t * bpm) / 60, ph = bt % 1, a = (1 - ph) * (1 - ph) * 0.8; if (a > 0.03) { g.save(); g.globalAlpha = a; g.lineWidth = 10; g.strokeStyle = ["#ff4fd8", "#7fd3ff", "#B8FF00", "#FFD23F"][Math.floor(bt) % 4]; g.strokeRect(5, 5, W - 10, H - 10); g.restore(); } }
-  if (playing && !paused && !refVideo && combo >= 10 && t >= 0) { g.save(); const still = noFx(); g.lineWidth = still ? 6 : 6 + 3 * Math.abs(Math.sin(now / 180)); g.strokeStyle = "#FFD23F"; if (!still && quality !== "low" && !(quality === "auto" && fpsE < 40)) { g.shadowColor = "#FFD23F"; g.shadowBlur = 18; } g.strokeRect(3, 3, W - 6, H - 6); g.shadowBlur = 0; g.font = "900 20px system-ui"; g.textAlign = "left"; g.textBaseline = "alphabetic"; g.fillStyle = "#FFD23F"; g.fillText(`🔥 On fire ×${combo}`, 16, moveCall && songLen(bpm) - t > 5 ? (moveCall.next ? 118 : 104) : 82); g.restore(); }
+  if (playing && !paused && !refVideo && combo >= 10 && t >= 0) { g.save(); const still = noFx(); g.lineWidth = still ? 6 : 6 + 3 * Math.abs(Math.sin(now / 180)); g.strokeStyle = "#FFD23F"; if (!still && quality !== "low" && !(quality === "auto" && fpsE < 40)) { g.shadowColor = "#FFD23F"; g.shadowBlur = 18; } g.strokeRect(3, 3, W - 6, H - 6); g.restore(); }
   if (playing && !paused && hit && hit.j === "Miss" && !hit.warm && now - hit.at < 300 && !noFx() && !document.documentElement.classList.contains("calm")) { const a = 0.35 * (1 - (now - hit.at) / 300), vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75); vg.addColorStop(0, "rgba(255,80,140,0)"); vg.addColorStop(1, `rgba(255,80,140,${a.toFixed(3)})`); g.save(); g.fillStyle = vg; g.fillRect(0, 0, W, H); g.restore(); }
   drawGoldChrome(g, W, H, t, bpm, now);
+  drawComboHud(g, W, H, t, now);
   if (playing && !paused && hit && now - hit.at < 700) { const k = (now - hit.at) / 700, col = JCOL(hit.j); g.save(); g.textAlign = "center"; g.globalAlpha = 1 - k * k; const sc = noFx() ? 1 : 1 + 0.25 * Math.max(0, 1 - k * 4); g.translate(W / 2, 92); g.scale(sc, sc); g.font = "900 38px system-ui"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(JSHAPE[hit.j] + " " + (hit.j === "Miss" ? "Miss" : hit.j + "!"), 0, 0); if (hit.gold) { g.font = "900 34px system-ui"; g.fillStyle = GOLD_COL(); g.fillText("★ GOLD MOVE!", 0, 46); } else if (hit.mile) { g.font = "900 30px system-ui"; g.fillStyle = "#FFD23F"; g.fillText(`🔥 ${hit.combo} combo!`, 0, 36); } else if (hit.j === "Miss" && hit.fix && !hit.warm) { g.font = "800 22px system-ui"; g.fillStyle = "#fff"; g.fillText(`Fix your ${hit.fix}`, 0, 32); } if (hit.gold) { /* gold callout replaces the combo line for this beat */ } else if (hit.rebuild) { g.font = "900 22px system-ui"; g.fillStyle = "#FFD23F"; g.fillText("💪 Build it back!", 0, hit.mile ? 66 : 32); } else if (hit.broke) { g.font = "800 20px system-ui"; g.fillStyle = "#ffb3e6"; g.fillText(`Combo broken · was ×${hit.broke}`, 0, hit.j === "Miss" && hit.fix && !hit.warm ? 60 : 32); } else if (hit.first) { g.font = "900 26px system-ui"; g.fillStyle = "#B8FF00"; g.fillText("🎉 Nice start! Keep it going", 0, 34); } else if (hit.warm) { g.font = "800 22px system-ui"; g.fillStyle = "#fff"; g.fillText("Warm-up: combo kept", 0, 32); } else if (hit.almost) { g.font = "900 22px system-ui"; g.fillStyle = "#FFD23F"; g.fillText(`Almost Perfect${hit.combo >= 3 ? " · " + hit.combo + " combo" : ""}`, 0, 32); } else if (hit.combo >= 3) { g.font = "800 24px system-ui"; g.fillStyle = "#fff"; g.fillText(`${hit.combo} combo`, 0, 32); } g.restore(); }
   if (playing && !paused && !refVideo && t >= 0) { const left = songLen(bpm) - t; if (left > 0 && left <= 5) { const num = Math.ceil(left), fs = Math.round(Math.min(W, H) * 0.25), sc = noFx() ? 1 : 1 + 0.12 * Math.max(0, (left % 1) * 2 - 1); g.save(); g.textAlign = "center"; g.textBaseline = "middle"; g.translate(W / 2, H / 2); g.scale(sc, sc); g.font = `900 ${fs}px system-ui`; g.fillStyle = "#FFD23F"; g.shadowColor = "rgba(0,0,0,.7)"; g.shadowBlur = 16; g.fillText(String(num), 0, 0); if (num <= 3) { g.font = "800 26px system-ui"; g.fillStyle = "#fff"; g.fillText("Finish strong!", 0, fs * 0.62); } g.restore(); } }
   if (playing) { const [w, col] = WORD(smooth ?? 0); g.font = "900 40px system-ui"; g.textAlign = "center"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; if (!paused) g.fillText(stream || goldHold ? w : "Turn on camera to score", W / 2, H - 70); g.shadowBlur = 0;
