@@ -63,6 +63,20 @@ export function goldWindows(routine, poses, songBeats = 96, section = 32) {
   }
   return [...new Set(out)];
 }
+/**
+ * Display-only combo multiplier for the mid-song badge.
+ * Tiers sit on the existing combo milestones (10 / 25 / 50 / 100):
+ *   under 10 → ×1, 10 → ×2, 25 → ×4, 50 → ×8.
+ *   100 stays ×8 (the cap). The badge reads MAX; the number does not go higher.
+ * Juice only — do not multiply match %, grades, stars, score pops, or the combo count by this.
+ */
+export function comboMultiplier(combo) {
+  const n = combo | 0;
+  if (n >= 50) return 8;
+  if (n >= 25) return 4;
+  if (n >= 10) return 2;
+  return 1;
+}
 /** Whether this judged beat earns the gold bonus. Perfect or Great only, once per window. */
 export function goldHit(windows, beat, judgement, already) {
   let gid = 0;
