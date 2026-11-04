@@ -17,7 +17,7 @@ initControls(); window.dcShowControls = showControls; initShop(); initShare();
 for (const e of document.querySelectorAll(".ver")) e.textContent = window.DC_VERSION || "";
 import { initTV, isTV, initTips, showTips, ghostStart, ghostRecord, ghostDraw, finishRun, boardHTML } from "./features.js";
 import { coachReset, coachAdd, coachReport, coachHTML, liveReset, coachLive } from "./coach.js";
-import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS } from "./moves.js";
+import { MOVES, poseAngles, similarity, drawCoach, wrap, SEGS, goldWindows, goldHit } from "./moves.js";
 import { drawStage } from "./stages.js";
 import { coach3dLoad, coach3dReady, coach3dRender, applyLook, getLook } from "./coach3d.js";
 import "./m2e-ui.js";
@@ -76,7 +76,7 @@ function schedule() {
     if (beatN < 4) { kick(t, 0.6); hat(t + spb / 2, 0.18); blip(t, hz(b === 3 ? 88 : 81), 0.12, "square", 0.12, master); if (b === 3) noise(t, spb, "highpass", 2000, 0.12); nextBeatT += spb; beatN++; continue; } // count-in cue
     const m = beatN - 4, bar = Math.floor(m / 4) % 4, sect = Math.floor(m / 32) % 2; // 8-bar sections: verse / drop
     const ps = m % 32, fill = ps >= 28; // last bar of each 8-bar section: drum fill + riser into the next section
-    if (ps === 0 && m > 0) crash(t);
+    if (ps === 0 && m > 0) crash(t); // 8-bar section hit — Gold Moves use this same 32-beat grid
     if (fill) { snareRoll(t, spb, (ps - 28) / 4); if (ps === 28) riser(t, spb * 4); }
     if (ps !== 31) kick(t); hat(t + spb / 2, 0.22); if (sect) { hat(t + spb / 4, 0.1); hat(t + (3 * spb) / 4, 0.1); } if (b === 1 || b === 3) clap(t);
     const n = track.root + track.bass[bar], sweep = 500 + 2200 * ((m % 16) / 16);
@@ -91,6 +91,7 @@ function hitSound(j) { if (!ac || S.sounds === false) return; const t = ac.curre
   else if (j === "Great") blip(t, hz(base + 12), 0.18, "triangle", 0.08, sfxBus);
   else if (j === "Good") blip(t, hz(base + 7), 0.1, "triangle", 0.045, sfxBus);
   else if (j === "Miss") { blip(t, hz(base - 12), 0.14, "sine", 0.07, sfxBus); noise(t, 0.08, "lowpass", 900, 0.025, sfxBus); } }
+function goldSound() { if (!ac || S.sounds === false) return; const t = ac.currentTime + 0.01, base = track.root + 60; [0, 4, 7, 12, 16].forEach((d, i) => blip(t + i * 0.05, hz(base + d), 0.26, "triangle", 0.11, sfxBus)); noise(t + 0.02, 0.16, "highpass", 7200, 0.06, sfxBus); }
 const MILES = [10, 25, 50, 100];
 function milestoneSound() { if (!ac || S.sounds === false) return; const t = ac.currentTime + 0.01, base = track.root + 60; [0, 4, 7, 12].forEach((d, i) => blip(t + i * 0.07, hz(base + d), 0.22, "triangle", 0.09, sfxBus)); noise(t + 0.28, 0.2, "highpass", 8000, 0.05, sfxBus); }
 const GRADE = (pct) => (pct >= 90 ? ["S", "#FFD23F"] : pct >= 80 ? ["A", "#B8FF00"] : pct >= 65 ? ["B", "#7fd3ff"] : pct >= 50 ? ["C", "#ffb86b"] : ["D", "#ff8a8a"]);
@@ -181,13 +182,14 @@ $("#fileIn").onchange = async (e) => {
 function start() {
   if (!stream && !refVideo && !start.nudged) { start.nudged = true; toastMsg("📷 Turn on camera to get scored"); const cb = $("#camBtn"); if (cb && !noFx()) { cb.classList.remove("cam-nudge"); void cb.offsetWidth; cb.classList.add("cam-nudge"); setTimeout(() => cb.classList.remove("cam-nudge"), 1600); } }
   paused = false; document.body.classList.remove("paused");
-  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; cntLast = -1; dGoal = null; goalHit = 0; gradeTop = -1; gradeUp = null; pbChase = null; finStrong = null; comboRebuild = 0; pbBest = 0; limbSum.fill(0); limbCnt.fill(0); mvSum = {}; mvCnt = {}; firstHit = false; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; scorePops.length = 0; pictoSlot = -1; pictoAt = 0; starGot = 0; starPop = [0, 0, 0]; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || mode === "event" || refVideo ? 1 : speedPref(); if (ghostStart(runKey()) && S.ghost !== false && !localStorage.getItem("dc.ghostTip")) { try { localStorage.setItem("dc.ghostTip", "1"); } catch {} toastMsg("👻 Ghost of your best run is on — beat the faint outline"); } coachReset(); liveReset(); try { if (mode !== "daily" && mode !== "event" && mode !== "practice" && !refVideo) { const b = JSON.parse(localStorage.getItem("dc.pb." + runKey()) || "[]"); pbBest = (b[0] && +b[0].pct) || 0; } } catch {}
+  sum = n = perfect = 0; smooth = null; combo = maxCombo = 0; cntLast = -1; dGoal = null; goalHit = 0; gradeTop = -1; gradeUp = null; pbChase = null; finStrong = null; comboRebuild = 0; pbBest = 0; limbSum.fill(0); limbCnt.fill(0); mvSum = {}; mvCnt = {}; firstHit = false; judged = { Perfect: 0, Great: 0, Good: 0, Miss: 0 }; beatI = -1; beatS = beatN2 = 0; hit = null; scorePops.length = 0; goldAwarded = 0; goldFx = null; goldHold = false; buildGold(); pictoSlot = -1; pictoAt = 0; starGot = 0; starPop = [0, 0, 0]; playing = true; $("#result").hidden = true; runSpd = mode === "daily" || mode === "event" || refVideo ? 1 : speedPref(); if (ghostStart(runKey()) && S.ghost !== false && !localStorage.getItem("dc.ghostTip")) { try { localStorage.setItem("dc.ghostTip", "1"); } catch {} toastMsg("👻 Ghost of your best run is on — beat the faint outline"); } coachReset(); liveReset(); try { if (mode !== "daily" && mode !== "event" && mode !== "practice" && !refVideo) { const b = JSON.parse(localStorage.getItem("dc.pb." + runKey()) || "[]"); pbBest = (b[0] && +b[0].pct) || 0; } } catch {}
   if (refVideo) { refVideo.currentTime = 0; refVideo.play(); t0 = performance.now(); } else { const at = musicStart(); t0 = performance.now() + (at - ac.currentTime) * 1000 + (4 * 60000) / BPM(); cntLast = 1; cntArm((t0 - performance.now()) / 1000, BPM()); /* 4-beat count-in */ }
   $("#startBtn").textContent = "■ Stop"; document.body.style.setProperty("--spb", (60 / BPM()).toFixed(3) + "s"); document.body.classList.add("dancing");
 }
 let lastResult = null, lastBoard = null;
 let combo = 0, maxCombo = 0, judged = {}, beatI = -1, beatS = 0, beatN2 = 0, hit = null; // per-beat judgement + combo
-let scorePops = []; // juice only: rising +1000 / +500 / +200. Does not affect match %, grades, or stars.
+let scorePops = []; // juice only: rising +1000 / +500 / +200, or +2000 on a Gold Move. Does not affect match %, grades, or stars.
+let goldStarts = [], goldAt = new Map(), goldAwarded = 0, goldFx = null, goldHold = false, goldFreezeMs = 0;
 const noFx = () => RM.matches || document.documentElement.classList.contains("reduce");
 const runKey = () => refVideo ? "video" : mode === "daily" ? "daily-" + today : mode === "practice" ? "practice" : mode === "event" ? "event-" + (eventPlan()?.key || "") : "song-" + track.id + (runSpd !== 1 ? "@" + runSpd : "");
 window.dcGhostOn = () => S.ghost !== false;
@@ -227,7 +229,7 @@ function shareText(r) { const sn = r.song ? ` on ${r.song}` : "", cb = r.combo >
 window.dcShareText = () => (lastResult ? shareText(lastResult) : ""); window.dcShare = share; window.dcCardFor = (r) => { lastResult = r; return resultCard(); }; // also used by tests
 // ---- Shared AI buddy (web only; TODO native: needs data-safety/privacy update before shipping in the APK) ----
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-const BUDDY_FACTS = 'Dance Coach facts. SCORING: camera tracks your pose on this device (never uploaded) and compares body angles to the coach; Perfect >80%, Great >65%, Good >50%. End of song: 3 stars at 80%+, 2 at 60%+, 1 at 35%+; grade S 90%+, A 80%+, B 65%+, C 50%+, else D. Combo milestones at 10, 25, 50 and 100 beats in a row. DIFFICULTY (Settings): Easy is more forgiving, Normal, Hard is stricter. ROUTINE OF THE DAY: a new 9-move routine every day; dancing it keeps your daily streak; weekly goal is 5 days. COINS (website only, just for fun, no real money): earned from daily streak, first dance of the day, finishing songs, 3 stars, daily/weekly challenge, level-ups, achievements; free chest every 4 hours; spend coins in the Settings shop on coach outfits and stage themes. CONTROLS: Touch: tap Start/Stop, Turn on camera, Record clip; long-press ? for the guide. Keyboard: Space start/pause, Esc back, arrows/Tab move, Enter select, hold H for the controls guide. Controller: A select, B back/pause, Start (Menu/Options/+) start or pause, Select (View/Share/-) settings, hold Select for the controls guide, LB/RB change song, D-pad moves. Steering wheels are ignored. TIPS: prop the phone up, step back so your whole body shows, good lighting.';
+const BUDDY_FACTS = 'Dance Coach facts. SCORING: camera tracks your pose on this device (never uploaded) and compares body angles to the coach; Perfect >80%, Great >65%, Good >50%. End of song: 3 stars at 80%+, 2 at 60%+, 1 at 35%+; grade S 90%+, A 80%+, B 65%+, C 50%+, else D. Combo milestones at 10, 25, 50 and 100 beats in a row. GOLD MOVES: twice a song, the biggest pose near each section hit is a Gold Move. Perfect or Great on that beat shows a gold GOLD MOVE callout and a +2000 pop. Good or Miss does not. The pop is for show only and does not change match percent, grade, stars, or combo. DIFFICULTY (Settings): Easy is more forgiving, Normal, Hard is stricter. ROUTINE OF THE DAY: a new 9-move routine every day; dancing it keeps your daily streak; weekly goal is 5 days. COINS (website only, just for fun, no real money): earned from daily streak, first dance of the day, finishing songs, 3 stars, daily/weekly challenge, level-ups, achievements; free chest every 4 hours; spend coins in the Settings shop on coach outfits and stage themes. CONTROLS: Touch: tap Start/Stop, Turn on camera, Record clip; long-press ? for the guide. Keyboard: Space start/pause, Esc back, arrows/Tab move, Enter select, hold H for the controls guide. Controller: A select, B back/pause, Start (Menu/Options/+) start or pause, Select (View/Share/-) settings, hold Select for the controls guide, LB/RB change song, D-pad moves. Steering wheels are ignored. TIPS: prop the phone up, step back so your whole body shows, good lighting.';
 function buddyCtx() { try { const sc = playing ? (paused ? "paused" : "dancing") : !$("#settings").hidden ? "settings" : !$("#result").hidden ? "results" : "home";
   window.OppsBuddy?.setContext({ facts: BUDDY_FACTS, context: `Screen: ${sc}. Mode: ${mode}. Song: ${track.name}. Difficulty: ${localStorage.getItem("dc.diff") || "normal"}. Last score: ${lastResult ? lastResult.pct + "% " + lastResult.stars + " stars" : "none yet"}.` }); } catch {} }
 // Burst guard: hub may answer 200 {source:'slow'} (or 429 slow_down). Show a friendly line instead of a blank/odd reply.
@@ -269,6 +271,7 @@ addEventListener("dc-prog", syncPractice); syncPractice();
 window.dcSmart = { dailyRoutine: () => dailyRoutine(), speed: () => runSpd };
 
 function stop() {
+  if (goldHold) { goldHold = false; goldFx = null; hit = null; scorePops.length = 0; goldFreezeMs = 0; sum = n = perfect = 0; playing = false; paused = false; document.body.classList.remove("dancing", "paused"); $("#startBtn").textContent = "▶ Start"; if (baseTitle) document.title = baseTitle; return; } // ?juice=1 preview must not write a score
   const wasPlaying = playing;
   if (paused) { paused = false; document.body.classList.remove("paused"); ac?.resume(); window.speechSynthesis?.resume(); status("Stopped."); }
   if (baseTitle) document.title = baseTitle;
@@ -312,6 +315,7 @@ function setPaused(on) { cntCancel(); cntLast = -1;
 window.dcPause = setPaused;
 const CBM = () => document.documentElement.classList.contains("cb");
 const JCOL = (j) => (CBM() ? { Perfect: "#F0E442", Great: "#56B4E9", Good: "#E69F00", Miss: "#D55E00" } : { Perfect: "#FFD23F", Great: "#B8FF00", Good: "#7fd3ff", Miss: "#ff8a8a" })[j];
+const GOLD_COL = () => (CBM() ? "#F0E442" : "#FFD23F");
 const JSHAPE = { Perfect: "★", Great: "◆", Good: "●", Miss: "✕" }; // shapes always shown so colour is never the only cue
 const WORD = (s) => (s > 0.8 ? [JSHAPE.Perfect + " Perfect!", JCOL("Perfect")] : s > 0.65 ? [JSHAPE.Great + " Great!", JCOL("Great")] : s > 0.5 ? [JSHAPE.Good + " Good", JCOL("Good")] : ["Keep going!", "#fff"]);
 const INRES = +(new URLSearchParams(location.search).get("inres") ?? 256) || 0; // measured: 256 px input is ~10-15% faster than full camera frames
@@ -330,19 +334,21 @@ const limbM = new Array(8).fill(null), limbSum = new Array(8).fill(0), limbCnt =
 let firstHit = false;
 const LIMB_NAMES = ["left upper arm", "left forearm", "right upper arm", "right forearm", "left thigh", "left lower leg", "right thigh", "right lower leg"];
 function burst(x, y) { for (let i = 0, k = partN(); i < k; i++) { const a = Math.random() * 6.283, v = 2 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 3, life: 1, c: ["#B8FF00", "#FFD23F", "#ff4fd8", "#7fd3ff"][i % 4] }); } }
+function burstGold(x, y) { const k = Math.min(8, partN()); for (let i = 0; i < k; i++) { const a = (i / k) * 6.283, v = 2.2; parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2.2, life: 1, c: i % 2 ? "#FFD23F" : "#fff6c2" }); } }
 function drawParts(g) { if (!parts.length) return; for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; g.fillRect(p.x, p.y, 8, 8); } g.globalAlpha = 1; parts = parts.filter((p) => p.life > 0); }
 // Just Dance-style floating beat points. Display only — thresholds and totals stay in the beat judge above.
 const POP_PTS = { Perfect: 1000, Great: 500, Good: 200 };
+const GOLD_PTS = 2000; // bigger than a normal Perfect. Shown on the pop only.
 const popCheap = () => quality === "low" || (quality === "auto" && fpsE < 40);
 const popStill = () => noFx() || document.documentElement.classList.contains("calm");
-function pushScorePop(j, now) {
-  const pts = POP_PTS[j];
+function pushScorePop(j, now, gold = false) {
+  const pts = gold ? GOLD_PTS : POP_PTS[j];
   if (!pts) return; // Miss: judgment text and SFX only, no points pop
   const cheap = popCheap(), still = popStill();
   if (cheap || still) scorePops.length = 0; // one pop when motion or fill-rate is limited
   else if (scorePops.length > 3) scorePops.shift();
   const i = scorePops.length;
-  scorePops.push({ j, pts, at: now, still, cheap, x: still || cheap ? 0 : (i % 2 ? 100 : -100), life: still ? 700 : 920 });
+  scorePops.push({ j, pts, gold: !!gold, at: now, still, cheap, x: still || cheap ? 0 : (i % 2 ? 100 : -100), life: still ? 700 : (gold ? 1100 : 920) });
 }
 function drawScorePops(g, W, H, now) {
   if (!playing || paused || !scorePops.length) return;
@@ -352,15 +358,24 @@ function drawScorePops(g, W, H, now) {
     if (k < 0 || k >= 1) continue;
     const rise = p.still ? 0 : Math.min(120, H * 0.12) * (1 - (1 - k) * (1 - k));
     const alpha = k < 0.55 ? 1 : (1 - k) / 0.45;
-    const sc = p.still || p.cheap ? 1 : 1 + 0.16 * Math.max(0, 1 - k * 4);
+    const sc = p.still || p.cheap ? 1 : 1 + (p.gold ? 0.22 : 0.16) * Math.max(0, 1 - k * 4);
     g.save();
     g.globalAlpha = Math.max(0, Math.min(1, alpha));
     g.translate(W / 2 + p.x, H * 0.58 - rise);
     g.scale(sc, sc);
-    const label = "+" + p.pts, fs = Math.round(Math.min(W, H) * 0.09);
-    g.font = `900 ${fs}px system-ui`; g.lineJoin = "round"; g.miterLimit = 2;
+    const label = "+" + p.pts, fs = Math.round(Math.min(W, H) * (p.gold ? 0.13 : 0.09));
+    g.lineJoin = "round"; g.miterLimit = 2;
+    if (p.gold) {
+      g.font = `900 ${Math.round(fs * 0.38)}px system-ui`;
+      g.lineWidth = Math.max(4, fs * 0.08); g.strokeStyle = "rgba(0,0,0,.72)"; g.strokeText("GOLD", 0, -fs * 0.62);
+      g.fillStyle = GOLD_COL();
+      if (!p.cheap) { g.shadowColor = "rgba(0,0,0,.85)"; g.shadowBlur = 10; }
+      g.fillText("GOLD", 0, -fs * 0.62);
+      g.shadowBlur = 0;
+    }
+    g.font = `900 ${fs}px system-ui`;
     g.lineWidth = Math.max(6, fs * 0.14); g.strokeStyle = "rgba(0,0,0,.72)"; g.strokeText(label, 0, 0);
-    g.fillStyle = JCOL(p.j);
+    g.fillStyle = p.gold ? GOLD_COL() : JCOL(p.j);
     if (!p.cheap) { g.shadowColor = "rgba(0,0,0,.85)"; g.shadowBlur = 12; }
     g.fillText(label, 0, 0);
     g.restore();
@@ -370,16 +385,82 @@ function drawScorePops(g, W, H, now) {
 }
 if (new URLSearchParams(location.search).get("juice") === "1") {
   // Local preview only (?juice=1). Does not change pose scores; used to screenshot pops without a camera.
-  window.dcShowBeat = (j) => {
+  window.dcShowBeat = (j, opt) => {
     const now = performance.now();
-    const before = { sum, n, perfect, combo, maxCombo, judged: { ...judged } };
-    hit = { j, at: now, combo: j === "Miss" ? 0 : 1, mile: false, warm: false, fix: null, broke: 0, first: false, almost: false, rebuild: false };
-    if (POP_PTS[j]) pushScorePop(j, now);
-    return { before, after: { sum, n, perfect, combo, maxCombo, judged: { ...judged } }, pops: scorePops.map((p) => ({ j: p.j, pts: p.pts, still: p.still, cheap: p.cheap, x: p.x })) };
+    const before = { sum, n, perfect, combo, maxCombo, judged: { ...judged }, goldAwarded };
+    const gold = !!(opt && opt.gold) && (j === "Perfect" || j === "Great");
+    hit = { j, at: now, combo: j === "Miss" ? 0 : 1, mile: false, warm: false, fix: null, broke: 0, first: false, almost: false, rebuild: false, gold };
+    if (gold) goldFx = { at: now };
+    if ((gold ? GOLD_PTS : POP_PTS[j])) pushScorePop(j, now, gold);
+    return { before, after: { sum, n, perfect, combo, maxCombo, judged: { ...judged }, goldAwarded }, pops: scorePops.map((p) => ({ j: p.j, pts: p.pts, gold: !!p.gold, still: p.still, cheap: p.cheap, x: p.x })) };
+  };
+  window.dcPreviewGold = (mode = "hit") => {
+    buildGold();
+    const bpm = BPM(), b0 = goldStarts[0] || 34;
+    const beat = mode === "soon" ? b0 - 0.45 : b0 + 1.08; // soon = next card is gold; hit = first gold beat just judged, hold beat still gold
+    goldFreezeMs = Math.max(0, beat) * (60 / bpm) * 1000;
+    goldHold = true; playing = true; paused = false; refVideo = null;
+    document.body.classList.add("dancing"); $("#startBtn").textContent = "■ Stop"; $("#result").hidden = true;
+    t0 = performance.now() - goldFreezeMs;
+    sum = 82; n = 100; smooth = 0.86; // display only — stop() drops this while goldHold is set
+    const now = performance.now(), c = coachAt(Math.max(0, beat) * 60 / bpm, bpm);
+    lastMoveIdx = c.idx; // keep the big move-name intro from covering the gold callout
+    moveCall = { name: MOVES[c.idx].name, next: MOVES[c.next]?.name, at: now - 5000 };
+    scorePops.length = 0; goldFx = null; hit = null;
+    if (mode !== "soon") {
+      const j = mode === "great" ? "Great" : mode === "good" ? "Good" : mode === "miss" ? "Miss" : "Perfect";
+      const gold = j === "Perfect" || j === "Great";
+      hit = { j, at: now, combo: 6, mile: false, warm: false, fix: null, broke: 0, first: false, almost: false, rebuild: false, gold };
+      if (gold) goldFx = { at: now };
+      if (POP_PTS[j]) pushScorePop(j, now, gold);
+    }
+    return { beat, starts: goldStarts.slice(), names: goldStarts.map((b) => MOVES[routine[(b / 2) % routine.length]]?.name), mode };
   };
 }
 let lastIdle = 0, moveTxt = "";
 const SONG_BEATS = 96; const songLen = (bpm) => (SONG_BEATS * 60) / bpm; // every song has an ending (~48-62 s) so runs have a clear goal
+function buildGold() {
+  goldStarts = goldWindows(routine, MOVES.map((m) => m.p), SONG_BEATS, 32);
+  goldAt = new Map();
+  for (const b of goldStarts) { goldAt.set(b, b); if (b + 1 < SONG_BEATS) goldAt.set(b + 1, b); }
+}
+window.dcGoldMove = {
+  windows: (rot) => goldWindows(rot || routine, MOVES.map((m) => m.p), SONG_BEATS, 32),
+  hit: (wins, beat, j, already = 0) => goldHit(wins, beat, j, already),
+  current: () => goldStarts.slice(),
+};
+function drawGoldChrome(g, W, H, t, bpm, now) {
+  const calm = noFx() || document.documentElement.classList.contains("calm");
+  const cheap = popCheap();
+  const beat = Math.floor((Math.max(0, t) * bpm) / 60);
+  const inWin = playing && !paused && !refVideo && t >= 0 && goldAt.has(beat);
+  if (inWin) {
+    g.save();
+    g.globalAlpha = calm || cheap ? 0.95 : 0.9;
+    g.lineWidth = calm || cheap ? 6 : 8;
+    g.strokeStyle = GOLD_COL();
+    if (!calm && !cheap) { g.shadowColor = GOLD_COL(); g.shadowBlur = 14; }
+    g.strokeRect(6, 6, W - 12, H - 12);
+    g.shadowBlur = 0; g.lineWidth = 4;
+    roundBox(g, W - 172, 8, 164, 164, 16); g.stroke();
+    g.restore();
+  }
+  if (!(playing && !paused && goldFx && now - goldFx.at < 700)) return;
+  const k = (now - goldFx.at) / 700;
+  g.save();
+  g.globalAlpha = calm ? 0.92 : Math.max(0, 1 - k);
+  g.lineWidth = calm || cheap ? 8 : 12;
+  g.strokeStyle = GOLD_COL();
+  if (!calm && !cheap) { g.shadowColor = GOLD_COL(); g.shadowBlur = 18; }
+  g.strokeRect(10, 10, W - 20, H - 20);
+  if (!calm && !cheap) {
+    const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.72);
+    vg.addColorStop(0, "rgba(255,210,63,0)");
+    vg.addColorStop(1, `rgba(255,210,63,${(0.22 * (1 - k)).toFixed(3)})`);
+    g.shadowBlur = 0; g.globalAlpha = 1; g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  }
+  g.restore();
+}
 let victoryUntil = 0;
 const want3d = () => S.coach3d !== false && quality !== "low" && !((navigator.deviceMemory || 8) < 3) && !((navigator.hardwareConcurrency || 8) <= 2);
 const maybe3d = () => { if (want3d()) coach3dLoad(); };
@@ -389,7 +470,7 @@ function roundBox(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRec
 // Just Dance-style queue: the corner coach is the move you are on; these cards show the next poses before they start.
 // Just Dance-style live star meter: 3 stars fill mid-song toward the 35/60/80% end-of-song thresholds, popping with a chime when earned.
 function drawStarMeter(g, W, t, now) {
-  if (!playing || paused || refVideo || !stream || t < 0 || n < 10) return;
+  if (!playing || paused || refVideo || (!stream && !goldHold) || t < 0 || n < 10) return;
   const sp = (sum / n) * 100, th = [35, 60, 80], lo = [0, 35, 60];
   const fx = !noFx() && !document.documentElement.classList.contains("calm");
   const r = 13, gap = 32, x0 = 16 + r, y = 124;
@@ -433,24 +514,26 @@ function drawPictoRail(g, W, H, t, bpm, now) {
   g.textAlign = "center"; g.textBaseline = "middle";
   for (let i = 0; i < nShow; i++) {
     if (y + ch > maxB) break;
-    const mv = MOVES[routine[(slot + 1 + i) % routine.length]];
+    const cardSlot = slot + 1 + i;
+    const mv = MOVES[routine[cardSlot % routine.length]];
+    const goldCard = goldAt.has(cardSlot * 2);
     if (!mv) break;
     const a = (i === 0 ? 1 : 0.92) * (0.55 + 0.45 * fade);
     g.globalAlpha = a;
-    g.fillStyle = "rgba(12,6,24,.84)";
+    g.fillStyle = goldCard ? "rgba(62,42,6,.92)" : "rgba(12,6,24,.84)";
     roundBox(g, x, y, cw, ch, 14); g.fill();
-    g.lineWidth = hc || i === 0 ? 3 : 2;
-    g.strokeStyle = i === 0 ? "#FFD23F" : (hc ? "#fff" : "rgba(255,255,255,.5)");
+    g.lineWidth = goldCard ? 4 : (hc || i === 0 ? 3 : 2);
+    g.strokeStyle = goldCard ? GOLD_COL() : (i === 0 ? "#FFD23F" : (hc ? "#fff" : "rgba(255,255,255,.5)"));
     g.stroke();
     g.save();
     g.translate(x, y);
     g.beginPath(); g.rect(0, 0, cw, poseH); g.clip();
-    drawCoach(g, cw, poseH, mv.p, i === 0 ? "#FFD23F" : "#ffffff", true);
+    drawCoach(g, cw, poseH, mv.p, goldCard || i === 0 ? GOLD_COL() : "#ffffff", true);
     g.restore();
     g.globalAlpha = a;
     g.font = "800 12px system-ui";
-    g.fillStyle = i === 0 ? "#FFD23F" : "rgba(255,255,255,.8)";
-    g.fillText(labels[i], x + cw / 2, y + poseH + 9);
+    g.fillStyle = goldCard ? GOLD_COL() : (i === 0 ? "#FFD23F" : "rgba(255,255,255,.8)");
+    g.fillText(goldCard ? "★ GOLD" : labels[i], x + cw / 2, y + poseH + 9);
     g.font = "700 13px system-ui";
     g.fillStyle = "#fff";
     g.fillText(mv.name, x + cw / 2, y + poseH + 22, cw - 12);
@@ -467,6 +550,8 @@ function frameIssue(L) { if (!L) return "Can't see you. Step into view"; const v
   return null; }
 let frameBad = null, frameBadAt = 0, frameOkAt = 0; window.dcFrame = () => frameBad; window.dcFrameIssue = frameIssue;
 function frame(now) {
+  if (goldHold && playing && !paused) t0 = now - goldFreezeMs;
+  if (goldHold && hit) { const age = now - hit.at; if (age > 220) { const shift = age - 140; hit.at += shift; if (goldFx) goldFx.at += shift; for (const p of scorePops) p.at += shift; } }
   requestAnimationFrame(frame);
   if (!playing && !stream && !refVideo && !parts.length && now > victoryUntil) { if (now - lastIdle < 120) return; lastIdle = now; } // idle: ~8 fps, saves battery + main thread
   window.dcPerf.frames++; if (lastF) fpsE = fpsE * 0.95 + (1000 / Math.max(1, now - lastF)) * 0.05; lastF = now;
@@ -480,7 +565,7 @@ function frame(now) {
   const bt = playing ? t * (bpm / 60) : now / 600, stStill = still || document.documentElement.classList.contains("calm") || quality === "low" || (quality === "auto" && playing && fpsE < 40), stFx = !document.documentElement.classList.contains("noparticles");
   const c3 = want3d() && coach3dReady() ? coach3dRender(ref, playing ? t * (bpm / 60) : now / 600, playing && !paused ? fpsE : 60, vic ? "victory" : "dance", still) : null;
   drawStage(cg, 300, 300, bt, { still: stStill, fx: stFx }); if (c3) cg.drawImage(c3, 0, 0, 300, 300); else drawCoach(cg, 300, 300, ref, coachCol(), true);
-  { const slotN = Math.floor((Math.max(0, t) * bpm) / 120), thenN = MOVES[routine[(slotN + 2) % routine.length]]?.name, nxt = MOVES[c.next]?.name; const mt = refVideo ? "Following your video" : `${MOVES[c.idx].name} — ${MOVES[c.idx].tip} · next: ${nxt}${thenN && thenN !== nxt ? ` · then: ${thenN}` : ""}`; if (mt !== moveTxt) { moveTxt = mt; $("#move").textContent = mt; } }
+  { const slotN = Math.floor((Math.max(0, t) * bpm) / 120), thenN = MOVES[routine[(slotN + 2) % routine.length]]?.name, nxt = MOVES[c.next]?.name, goldNow = !refVideo && t >= 0 && goldAt.has(slotN * 2); const mt = refVideo ? "Following your video" : `${goldNow ? "★ Gold move · " : ""}${MOVES[c.idx].name} — ${MOVES[c.idx].tip} · next: ${nxt}${thenN && thenN !== nxt ? ` · then: ${thenN}` : ""}`; if (mt !== moveTxt) { moveTxt = mt; $("#move").textContent = mt; } }
   if (!playing || refVideo || t < 0) lastMoveIdx = -1; else if (c.idx !== lastMoveIdx) { lastMoveIdx = c.idx; moveCall = { name: MOVES[c.idx].name, next: MOVES[c.next]?.name, at: now }; }
   const W = stage.width, H = stage.height;
   g.save(); g.translate(W, 0); g.scale(-1, 1);
@@ -510,7 +595,7 @@ function frame(now) {
   if (playing && !paused && lastPose && stream && (refVideo || t >= 0)) {
     const tS = performance.now(), u = poseAngles(lastPose), s0 = u && similarity(u, ref, refV); window.dcPerf.score = (window.dcPerf.score || 0) * 0.9 + (performance.now() - tS) * 0.1; const _x = 0, dif = localStorage.getItem("dc.diff") || "normal", s = s0 == null ? s0 : Math.min(1, s0 * (dif === "easy" ? 1.12 : dif === "hard" ? 0.92 : 1));
     if (u && !refVideo) { const lag = 30 / bpm; coachAdd(u, ref, refV, t, songLen(bpm), coachAt(t - lag, bpm).pose, coachAt(t + lag, bpm).pose); if (S.liveTips !== false) { const cue = coachLive(u, ref, now); if (cue) { status("💡 " + cue); liveTip = { text: String(cue).replace(/^Coach tip:\s*/i, ""), at: now }; } } if (s0 != null && t >= 0) { noteMove(c.idx, s0); if (!/^ready$/i.test(MOVES[c.idx]?.name)) { mvSum[c.idx] = (mvSum[c.idx] || 0) + s0; mvCnt[c.idx] = (mvCnt[c.idx] || 0) + 1; } } }
-    if (s != null && !refVideo) { const bI = Math.floor((t * bpm) / 60); if (bI !== beatI) { if (beatI >= 0 && beatN2) { const av = beatS / beatN2, j = av > 0.8 ? "Perfect" : av > 0.65 ? "Great" : av > 0.5 ? "Good" : "Miss"; judged[j]++; const warm = j === "Miss" && beatI < 4, broke = j === "Miss" && !warm && combo >= 5 ? combo : 0; combo = j === "Miss" ? (warm ? combo : 0) : combo + 1; maxCombo = Math.max(maxCombo, combo); const mile = j !== "Miss" && MILES.includes(combo); let fix = null; if (j === "Miss") { let lo = 1; limbM.forEach((m, k) => { if (m != null && m < 0.45 && m < lo) { lo = m; fix = LIMB_NAMES[k]; } }); } if (j === "Perfect") perfRing = { at: now }; hit = { j, at: now, combo, mile, warm, fix, broke, first: j !== "Miss" && !firstHit, almost: j === "Great" && av > 0.74, rebuild: false }; if (j !== "Miss") pushScorePop(j, now); if (broke && !comboRebuild) comboRebuild = 1; else if (comboRebuild === 1 && j !== "Miss") { comboRebuild = 2; hit.rebuild = true; } if (broke) haptic("heavy"); if (hit.first) { firstHit = true; if (!mile && !noFx()) burst(stage.width / 2, stage.height * 0.3); } if (mile) { milestoneSound(); haptic("medium"); rumble(0.5, 120); if (!noFx()) burst(stage.width / 2, stage.height * 0.3); } else hitSound(j); } beatI = bI; beatS = beatN2 = 0; } beatS += s; beatN2++; }
+    if (s != null && !refVideo) { const bI = Math.floor((t * bpm) / 60); if (bI !== beatI) { if (beatI >= 0 && beatN2) { const av = beatS / beatN2, j = av > 0.8 ? "Perfect" : av > 0.65 ? "Great" : av > 0.5 ? "Good" : "Miss"; judged[j]++; const warm = j === "Miss" && beatI < 4, broke = j === "Miss" && !warm && combo >= 5 ? combo : 0; combo = j === "Miss" ? (warm ? combo : 0) : combo + 1; maxCombo = Math.max(maxCombo, combo); const mile = j !== "Miss" && MILES.includes(combo); let fix = null; if (j === "Miss") { let lo = 1; limbM.forEach((m, k) => { if (m != null && m < 0.45 && m < lo) { lo = m; fix = LIMB_NAMES[k]; } }); } if (j === "Perfect") perfRing = { at: now }; const gHit = goldHit(goldStarts, beatI, j, goldAwarded); if (gHit.gold) goldAwarded = gHit.awarded; hit = { j, at: now, combo, mile, warm, fix, broke, first: j !== "Miss" && !firstHit, almost: j === "Great" && av > 0.74, rebuild: false, gold: gHit.gold }; if (j !== "Miss") pushScorePop(j, now, gHit.gold); if (gHit.gold) { goldFx = { at: now }; goldSound(); haptic("medium"); rumble(0.45, 100); if (partN()) burstGold(stage.width / 2, stage.height * 0.42); } if (broke && !comboRebuild) comboRebuild = 1; else if (comboRebuild === 1 && j !== "Miss") { comboRebuild = 2; hit.rebuild = true; } if (broke) haptic("heavy"); if (hit.first) { firstHit = true; if (!mile && !gHit.gold && !noFx()) burst(stage.width / 2, stage.height * 0.3); } if (!gHit.gold) { if (mile) { milestoneSound(); haptic("medium"); rumble(0.5, 120); if (!noFx()) burst(stage.width / 2, stage.height * 0.3); } else hitSound(j); } } beatI = bI; beatS = beatN2 = 0; } beatS += s; beatN2++; }
     if (s != null) { smooth = smooth == null ? s : smooth * 0.8 + s * 0.2; sum += s; n++; if (s > 0.8) { perfect++; if (now - lastBuzz > 1500) { lastBuzz = now; haptic("light"); rumble(0.3, 80); burst(stage.width / 2, stage.height * 0.35); } } }
   }
   drawParts(g);
@@ -518,9 +603,10 @@ function frame(now) {
   if (playing && !paused && !refVideo && t >= 0 && !noFx() && !document.documentElement.classList.contains("calm")) { const bt = (t * bpm) / 60, ph = bt % 1, a = (1 - ph) * (1 - ph) * 0.8; if (a > 0.03) { g.save(); g.globalAlpha = a; g.lineWidth = 10; g.strokeStyle = ["#ff4fd8", "#7fd3ff", "#B8FF00", "#FFD23F"][Math.floor(bt) % 4]; g.strokeRect(5, 5, W - 10, H - 10); g.restore(); } }
   if (playing && !paused && !refVideo && combo >= 10 && t >= 0) { g.save(); const still = noFx(); g.lineWidth = still ? 6 : 6 + 3 * Math.abs(Math.sin(now / 180)); g.strokeStyle = "#FFD23F"; if (!still && quality !== "low" && !(quality === "auto" && fpsE < 40)) { g.shadowColor = "#FFD23F"; g.shadowBlur = 18; } g.strokeRect(3, 3, W - 6, H - 6); g.shadowBlur = 0; g.font = "900 20px system-ui"; g.textAlign = "left"; g.textBaseline = "alphabetic"; g.fillStyle = "#FFD23F"; g.fillText(`🔥 On fire ×${combo}`, 16, moveCall && songLen(bpm) - t > 5 ? (moveCall.next ? 118 : 104) : 82); g.restore(); }
   if (playing && !paused && hit && hit.j === "Miss" && !hit.warm && now - hit.at < 300 && !noFx() && !document.documentElement.classList.contains("calm")) { const a = 0.35 * (1 - (now - hit.at) / 300), vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75); vg.addColorStop(0, "rgba(255,80,140,0)"); vg.addColorStop(1, `rgba(255,80,140,${a.toFixed(3)})`); g.save(); g.fillStyle = vg; g.fillRect(0, 0, W, H); g.restore(); }
-  if (playing && !paused && hit && now - hit.at < 700) { const k = (now - hit.at) / 700, col = JCOL(hit.j); g.save(); g.textAlign = "center"; g.globalAlpha = 1 - k * k; const sc = noFx() ? 1 : 1 + 0.25 * Math.max(0, 1 - k * 4); g.translate(W / 2, 92); g.scale(sc, sc); g.font = "900 38px system-ui"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(JSHAPE[hit.j] + " " + (hit.j === "Miss" ? "Miss" : hit.j + "!"), 0, 0); if (hit.mile) { g.font = "900 30px system-ui"; g.fillStyle = "#FFD23F"; g.fillText(`🔥 ${hit.combo} combo!`, 0, 36); } else if (hit.j === "Miss" && hit.fix && !hit.warm) { g.font = "800 22px system-ui"; g.fillStyle = "#fff"; g.fillText(`Fix your ${hit.fix}`, 0, 32); } if (hit.rebuild) { g.font = "900 22px system-ui"; g.fillStyle = "#FFD23F"; g.fillText("💪 Build it back!", 0, hit.mile ? 66 : 32); } else if (hit.broke) { g.font = "800 20px system-ui"; g.fillStyle = "#ffb3e6"; g.fillText(`Combo broken · was ×${hit.broke}`, 0, hit.j === "Miss" && hit.fix && !hit.warm ? 60 : 32); } else if (hit.first) { g.font = "900 26px system-ui"; g.fillStyle = "#B8FF00"; g.fillText("🎉 Nice start! Keep it going", 0, 34); } else if (hit.warm) { g.font = "800 22px system-ui"; g.fillStyle = "#fff"; g.fillText("Warm-up: combo kept", 0, 32); } else if (hit.almost) { g.font = "900 22px system-ui"; g.fillStyle = "#FFD23F"; g.fillText(`Almost Perfect${hit.combo >= 3 ? " · " + hit.combo + " combo" : ""}`, 0, 32); } else if (hit.combo >= 3) { g.font = "800 24px system-ui"; g.fillStyle = "#fff"; g.fillText(`${hit.combo} combo`, 0, 32); } g.restore(); }
+  drawGoldChrome(g, W, H, t, bpm, now);
+  if (playing && !paused && hit && now - hit.at < 700) { const k = (now - hit.at) / 700, col = JCOL(hit.j); g.save(); g.textAlign = "center"; g.globalAlpha = 1 - k * k; const sc = noFx() ? 1 : 1 + 0.25 * Math.max(0, 1 - k * 4); g.translate(W / 2, 92); g.scale(sc, sc); g.font = "900 38px system-ui"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; g.fillText(JSHAPE[hit.j] + " " + (hit.j === "Miss" ? "Miss" : hit.j + "!"), 0, 0); if (hit.gold) { g.font = "900 34px system-ui"; g.fillStyle = GOLD_COL(); g.fillText("★ GOLD MOVE!", 0, 46); } else if (hit.mile) { g.font = "900 30px system-ui"; g.fillStyle = "#FFD23F"; g.fillText(`🔥 ${hit.combo} combo!`, 0, 36); } else if (hit.j === "Miss" && hit.fix && !hit.warm) { g.font = "800 22px system-ui"; g.fillStyle = "#fff"; g.fillText(`Fix your ${hit.fix}`, 0, 32); } if (hit.gold) { /* gold callout replaces the combo line for this beat */ } else if (hit.rebuild) { g.font = "900 22px system-ui"; g.fillStyle = "#FFD23F"; g.fillText("💪 Build it back!", 0, hit.mile ? 66 : 32); } else if (hit.broke) { g.font = "800 20px system-ui"; g.fillStyle = "#ffb3e6"; g.fillText(`Combo broken · was ×${hit.broke}`, 0, hit.j === "Miss" && hit.fix && !hit.warm ? 60 : 32); } else if (hit.first) { g.font = "900 26px system-ui"; g.fillStyle = "#B8FF00"; g.fillText("🎉 Nice start! Keep it going", 0, 34); } else if (hit.warm) { g.font = "800 22px system-ui"; g.fillStyle = "#fff"; g.fillText("Warm-up: combo kept", 0, 32); } else if (hit.almost) { g.font = "900 22px system-ui"; g.fillStyle = "#FFD23F"; g.fillText(`Almost Perfect${hit.combo >= 3 ? " · " + hit.combo + " combo" : ""}`, 0, 32); } else if (hit.combo >= 3) { g.font = "800 24px system-ui"; g.fillStyle = "#fff"; g.fillText(`${hit.combo} combo`, 0, 32); } g.restore(); }
   if (playing && !paused && !refVideo && t >= 0) { const left = songLen(bpm) - t; if (left > 0 && left <= 5) { const num = Math.ceil(left), fs = Math.round(Math.min(W, H) * 0.25), sc = noFx() ? 1 : 1 + 0.12 * Math.max(0, (left % 1) * 2 - 1); g.save(); g.textAlign = "center"; g.textBaseline = "middle"; g.translate(W / 2, H / 2); g.scale(sc, sc); g.font = `900 ${fs}px system-ui`; g.fillStyle = "#FFD23F"; g.shadowColor = "rgba(0,0,0,.7)"; g.shadowBlur = 16; g.fillText(String(num), 0, 0); if (num <= 3) { g.font = "800 26px system-ui"; g.fillStyle = "#fff"; g.fillText("Finish strong!", 0, fs * 0.62); } g.restore(); } }
-  if (playing) { const [w, col] = WORD(smooth ?? 0); g.font = "900 40px system-ui"; g.textAlign = "center"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; if (!paused) g.fillText(stream ? w : "Turn on camera to score", W / 2, H - 70); g.shadowBlur = 0;
+  if (playing) { const [w, col] = WORD(smooth ?? 0); g.font = "900 40px system-ui"; g.textAlign = "center"; g.fillStyle = col; g.shadowColor = "#000"; g.shadowBlur = 8; if (!paused) g.fillText(stream || goldHold ? w : "Turn on camera to score", W / 2, H - 70); g.shadowBlur = 0;
     if (!refVideo && t > 0) { const pr = Math.min(1, t / songLen(bpm)), fin = !paused && songLen(bpm) - t <= 10, bh = fin ? 12 : 6, gr = g.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, fin ? "#FFD23F" : "#ff4fd8"); gr.addColorStop(1, fin ? "#B8FF00" : "#7fd3ff"); g.fillStyle = fin && !noFx() && !document.documentElement.classList.contains("calm") ? `rgba(255,210,63,${(0.18 + 0.12 * Math.sin(now / 160)).toFixed(3)})` : "rgba(0,0,0,.35)"; g.fillRect(0, 0, W, bh); g.fillStyle = gr; g.fillRect(0, 0, W * pr, bh); const left = Math.max(0, Math.ceil(songLen(bpm) - t)); g.font = fin ? "900 22px system-ui" : "700 18px system-ui"; g.textAlign = "right"; g.fillStyle = "#fff"; g.fillText(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`, W - 180, 32); g.textAlign = "center"; }
     if (!paused) { g.fillStyle = "rgba(255,255,255,.25)"; g.fillRect(20, H - 40, W - 40, 16); g.fillStyle = col; g.fillRect(20, H - 40, (W - 40) * (smooth ?? 0), 16); }
     g.font = "700 20px system-ui"; g.textAlign = "left"; g.fillStyle = "#fff"; { const sp = n > 0 ? Math.round((sum / n) * 100) : 0; g.fillText(`Dance Coach · ${sp}%${n > 0 && stream && !refVideo ? " · " + GRADE(sp)[0] : ""}`, 16, 32); if (playing && !paused && !refVideo && stream && t >= 3 && n >= 30) { const gk = "DCBAS".indexOf(GRADE(sp)[0]); if (gradeTop < 0) gradeTop = gk; else if (gk > gradeTop) { gradeTop = gk; gradeUp = { g: GRADE(sp), at: now }; } } if (pbBest > 0 && !pbChase && mode !== "daily" && mode !== "event" && t >= 8 && n >= 40 && sp < pbBest && pbBest - sp <= 5) pbChase = { d: pbBest - sp, at: now }; } g.font = "600 16px system-ui"; g.fillStyle = "rgba(255,255,255,.7)"; g.fillText("dancecoach.pages.dev", 16, 56); }

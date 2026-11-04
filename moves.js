@@ -26,6 +26,51 @@ export const MOVES = [
 ];
 /** the routine: move index per 2 beats */
 export const ROUTINE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+/** How big a pose reads on screen. Arms only — legs in this routine are small steps. */
+export function poseEnergy(p) {
+  if (!p) return 0;
+  let e = 0;
+  for (let i = 0; i < 4; i++) e += Math.abs(p[i] || 0);
+  return e;
+}
+/**
+ * Gold Move windows for one song.
+ * `section` is the same 8-bar grid as the cymbal crash in the music (every 32 beats).
+ * Around each crash that still falls inside the song, the current routine's biggest
+ * pose (arm energy, wrapping) is the Gold Move. Returns the first beat of each window;
+ * the window itself is that beat and the next one (the move is held for two beats).
+ * Juice only — callers must not feed this into match %, grades, stars, or combo.
+ */
+export function goldWindows(routine, poses, songBeats = 96, section = 32) {
+  const out = [];
+  if (!routine || !routine.length || !poses || !poses.length || section < 2) return out;
+  const at = (s) => {
+    const b0 = s * 2;
+    if (s < 0 || b0 <= 0 || b0 + 1 >= songBeats) return null;
+    const idx = routine[((s % routine.length) + routine.length) % routine.length];
+    return { s, b0, e: poseEnergy(poses[idx]) };
+  };
+  const better = (a, b) => b && (!a || b.e > a.e || (b.e === a.e && b.s > a.s));
+  for (let crash = section; crash < songBeats; crash += section) {
+    const slotC = Math.floor(crash / 2);
+    let best = null;
+    for (let s = slotC - 1; s <= slotC + 2; s++) { const row = at(s); if (better(best, row)) best = row; }
+    if (!best || best.e <= 80) {
+      const s0 = Math.floor((crash - section) / 2);
+      for (let s = s0; s <= slotC + 2; s++) { const row = at(s); if (better(best, row)) best = row; }
+    }
+    if (best && best.e > 80) out.push(best.b0);
+  }
+  return [...new Set(out)];
+}
+/** Whether this judged beat earns the gold bonus. Perfect or Great only, once per window. */
+export function goldHit(windows, beat, judgement, already) {
+  let gid = 0;
+  const b = beat | 0;
+  for (const w of windows || []) if (b === w || b === w + 1) gid = w;
+  const gold = !!(gid && gid !== already && (judgement === "Perfect" || judgement === "Great"));
+  return { gid, gold, awarded: gold ? gid : (already || 0) };
+}
 export const wrap = (a) => ((((a + 180) % 360) + 360) % 360) - 180;
 export function coachPose(t, bpm) {
   const beat = Math.max(0, t) * (bpm / 60);
